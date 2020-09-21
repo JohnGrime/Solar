@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<title>Test</title>
+
+	<script src="https://preview.babylonjs.com/babylon.js"></script>
+	<!--
+	<script src="https://preview.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+	-->
+
+	<style>
+		html, body {
+			width:   100%;
+			height:  100%;
+			margin:  0px;
+			padding: 0px;
+		}
+
+		.canvasContainer {
+			width:   100%;
+			height:  50%;
+			margin:  0px;
+			padding: 0px;
+			display: inline-block;
+		}
+
+		.renderCanvas {
+			width:   50%;
+			height:  100%;
+			margin:  0px;
+			padding: 0px;
+		}
+
+		.uiContainer {
+			width:   100%;
+			margin:  0px;
+			padding: 0px;
+			display: inline-block;
+		}
+
+		.uiSubContainer {
+			width:   50%;
+			margin:  0px;
+			padding: 0px;
+			display: inline-block;
+			align-content: center;
+		}
+	</style>
+</head>
+
+<body>
+
+	<div class="canvasContainer">
+		<canvas class="renderCanvas" id="renderCanvas"></canvas><canvas class="renderCanvas" id="renderCanvas2"></canvas>
+	</div>
+
+	<div class="uiContainer">
+		<div class="uiSubContainer" id="uiContainer"></div><pre class="uiSubContainer" id="outputContainer"></pre>
+	</div>
+
+	<!--
+		Need to specify script type as 'module' to import modules in the browser.
+		Modules are automatically in strict mode.
+	-->
+	<script type="module" src="typescript/build/solar.js"></script>
+
+</body>
+
+</html>
