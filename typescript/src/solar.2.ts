@@ -466,8 +466,8 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 
 		// Shadows
 //		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
-//		const shadowGenerator = new BABYLON.ShadowGenerator(4096, light);
-		const shadowGenerator = new BABYLON.CascadedShadowGenerator(5120, light);
+		const shadowGenerator = new BABYLON.ShadowGenerator(4096, light);
+//		const shadowGenerator = new BABYLON.CascadedShadowGenerator(1024, light);
 		shadowGenerator.addShadowCaster(cyl);
 		shadowGenerator.addShadowCaster(cube);
 //		shadowGenerator.useBlurExponentialShadowMap = true;
@@ -480,7 +480,7 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 
 				m.receiveShadows = true;
 
-				m.scaling = BV3([0.01, 0.1, 0.01]);
+				m.scaling = BV3([0.01, 0.01, 0.01]);
 
 				// We likely don't have vertex normals in the file to save space. Calculate them here.
 				let vtx = m.getVerticesData(BABYLON.VertexBuffer.PositionKind);
