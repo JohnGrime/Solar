@@ -48,6 +48,9 @@ type systemData = {
 
 	globalView: View;
 	localView: View;
+
+	local_sun_distance: number;
+	local_sun_radius: number;
 };
 
 
@@ -169,8 +172,12 @@ let systemData: systemData = {
 
 		objects: {
 			sphere: null, // light position indicator
+			scenery: null,
 		}
 	},
+
+	local_sun_distance: 250.0,
+	local_sun_radius: 10.0,
 };
 
 
@@ -446,7 +453,7 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 		const cyl = BABYLON.MeshBuilder.CreateCylinder("cyl", {height: 1, diameter: 0.1}, scene);
 		cyl.position = BV3([0,0.5,0]);
 
-		sphere = BABYLON.MeshBuilder.CreateSphere('sphere', {diameter: 0.1}, scene);
+		sphere = BABYLON.MeshBuilder.CreateSphere('sphere', {diameter: systemData.local_sun_radius*2}, scene);
 		sphere.position = BV3([1,1,1]);
 		sphere.material = matSun;
 
@@ -458,20 +465,22 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 		gl.intensity = 0.5;
 
 		// Shadows
-		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
-//		const shadowGenerator = new BABYLON.CascadedShadowGenerator(512, light);
+//		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
+//		const shadowGenerator = new BABYLON.ShadowGenerator(4096, light);
+		const shadowGenerator = new BABYLON.CascadedShadowGenerator(5120, light);
 		shadowGenerator.addShadowCaster(cyl);
+		shadowGenerator.addShadowCaster(cube);
 //		shadowGenerator.useBlurExponentialShadowMap = true;
+//		shadowGenerator.useBlurCloseExponentialShadowMap = true;
 
 		BABYLON.SceneLoader.ImportMesh(null, "./models/", "out.obj", scene,
 			function onSuccess(meshes, particleSystems, skeletons) {
 				console.log(`success! ${meshes.length}`);
 				let m = meshes[0];
 
-//				shadowGenerator.addShadowCaster(m);
 				m.receiveShadows = true;
 
-				m.scaling = BV3([0.01, 0.01, 0.01]);
+				m.scaling = BV3([0.01, 0.1, 0.01]);
 
 				// We likely don't have vertex normals in the file to save space. Calculate them here.
 				let vtx = m.getVerticesData(BABYLON.VertexBuffer.PositionKind);
@@ -480,6 +489,28 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
     				BABYLON.VertexData.ComputeNormals(vtx, m.getIndices(), nrm);
     				m.setVerticesData(BABYLON.VertexBuffer.NormalKind, nrm);
     			}
+
+    			systemData.localView.objects.scenery = m;
+
+
+				let div = document.createElement("div");
+    			let control = document.createElement("input");
+    			control.type = "checkbox";
+    			control.onchange = function() {
+    				let c = control.checked;
+    				if (c) {
+						shadowGenerator.addShadowCaster(m);
+    				} else {
+						shadowGenerator.removeShadowCaster(m);
+    				}
+    				systemData.refreshViews();
+    				console.log(control.checked);
+    			};
+    			div.appendChild(control);
+
+				document.getElementById('uiContainer')?.appendChild(div);
+
+   				systemData.refreshViews();
 			},
 			function onProgress(scene) {
 				console.log("progress!");
@@ -596,7 +627,7 @@ systemData.refreshViews = function() {
 		let { light, scene, objects: {sphere} } = systemData.localView;
 		let [ax, ay, az] = [ [1,0,0], [0,1,0], [0,0,1] ];
 		let light_pos = GEOM.convertAziZen(ax, ay, az, azimuth, zenith);
-		let light_dist = 2.0;
+		let light_dist = systemData.local_sun_distance;
 
 		let light_dir = GEOM.unit([0-light_pos[0], 0-light_pos[1], 0-light_pos[2]]);
 
