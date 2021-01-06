@@ -176,8 +176,9 @@ let systemData: systemData = {
 		}
 	},
 
-	local_sun_distance: 250.0,
-	local_sun_radius: 10.0,
+//	local_sun_distance: 1e6,
+	local_sun_distance: 25000.0,
+	local_sun_radius: 500.0,
 };
 
 
@@ -420,7 +421,7 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 	let [engine, scene, camera] = createView(canvas);
 	let light: any, sphere: any; // FIXME
 	
-	// Light
+	// Directional light
 	{
 		let light_pos = [1,1,1];
 		let light_dir = GEOM.unit([0-light_pos[0], 0-light_pos[1], 0-light_pos[2]]);
@@ -428,10 +429,24 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 		light.position = BV3(light_pos);
 	}
 
+	// Hemispheric light for ambient; change color/intensity with sunrise/sunset?
+	{
+		/*
+		let light_pos = [1,1,1];
+		let light_dir = GEOM.unit([0-light_pos[0], 0-light_pos[1], 0-light_pos[2]]);
+		light = new BABYLON.DirectionalLight('light1', BV3(light_dir), scene);
+		light.position = BV3(light_pos);
+		*/
+		let ambient = new BABYLON.HemisphericLight('hemi_light1', BV3([0,1,0]), scene);
+		ambient.intensity = 0.2;
+	}
+
 	// Camera
 	{
 		camera.position = BV3([-4,4,0]);
-		camera.lowerRadiusLimit = 2.05;
+		camera.lowerRadiusLimit = 1;
+		camera.minZ = 0.1;
+		camera.maxZ = 100000;
 	}	
 
 	// Populate scene
@@ -466,8 +481,9 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 
 		// Shadows
 //		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
-		const shadowGenerator = new BABYLON.ShadowGenerator(4096, light);
-//		const shadowGenerator = new BABYLON.CascadedShadowGenerator(1024, light);
+		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
+//		const shadowGenerator = new BABYLON.ShadowGenerator(40960, light);
+//		const shadowGenerator = new BABYLON.CascadedShadowGenerator(4096, light);
 		shadowGenerator.addShadowCaster(cyl);
 		shadowGenerator.addShadowCaster(cube);
 //		shadowGenerator.useBlurExponentialShadowMap = true;
@@ -480,33 +496,59 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 
 				m.receiveShadows = true;
 
-				m.scaling = BV3([0.01, 0.01, 0.01]);
+				//m.scaling = BV3([0.01, 0.01, 0.01]);
 
 				// We likely don't have vertex normals in the file to save space. Calculate them here.
 				let vtx = m.getVerticesData(BABYLON.VertexBuffer.PositionKind);
 				if (vtx != null) {
-    				let nrm = new Float32Array(vtx.length);
-    				BABYLON.VertexData.ComputeNormals(vtx, m.getIndices(), nrm);
-    				m.setVerticesData(BABYLON.VertexBuffer.NormalKind, nrm);
-    			}
+					let nrm = new Float32Array(vtx.length);
+					BABYLON.VertexData.ComputeNormals(vtx, m.getIndices(), nrm);
+					m.setVerticesData(BABYLON.VertexBuffer.NormalKind, nrm);
+				}
 
     			systemData.localView.objects.scenery = m;
 
 
 				let div = document.createElement("div");
-    			let control = document.createElement("input");
-    			control.type = "checkbox";
-    			control.onchange = function() {
-    				let c = control.checked;
-    				if (c) {
-						shadowGenerator.addShadowCaster(m);
-    				} else {
-						shadowGenerator.removeShadowCaster(m);
-    				}
-    				systemData.refreshViews();
-    				console.log(control.checked);
-    			};
-    			div.appendChild(control);
+    			
+				{
+					let control = document.createElement("input");
+					control.type = "checkbox";
+					control.onchange = function() {
+						let c = control.checked;
+						if (c) {
+							shadowGenerator.addShadowCaster(m);
+						} else {
+							shadowGenerator.removeShadowCaster(m);
+						}
+						systemData.refreshViews();
+						console.log(control.checked);
+					};
+					div.appendChild(control);
+				}
+
+				{
+					let control = document.createElement("input");
+
+					let spa = systemData.spa;
+					let val = (spa.hour*60*60) + (spa.minute*60) + spa.second;
+
+					control.type = `range`;
+					Object.assign(control, {min: 0, max: 24*60*60, step: 1, value: val});
+					control.oninput = function() {
+						let val = parseInt(control.value);
+						let hour = Math.floor( (val / (60*60)) );
+						let minute = Math.floor( (val % (60*60)) / 60 );
+						let second = Math.floor( (val % (60*60)) % 60 );
+						console.log(val, hour, minute, second);
+						spa.hour = hour;
+						spa.minute = minute;
+						spa.second = second;
+						systemData.refreshUI();
+						systemData.refreshViews();
+					};
+					div.appendChild(control);
+				}
 
 				document.getElementById('uiContainer')?.appendChild(div);
 
