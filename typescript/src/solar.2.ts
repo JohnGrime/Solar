@@ -285,6 +285,8 @@ function createView(canvas: any) : [BABYLON.Engine, BABYLON.Scene, BABYLON.ArcRo
 function populateGlobalView(canvas: any) : void { // FIXME: input type
 	let [engine, scene, camera] = createView(canvas);
 	let light: any, sphere: any; // FIXME
+
+	scene.clearColor = new BABYLON.Color4(0,0,0,1);
 	
 	// Light
 	{
