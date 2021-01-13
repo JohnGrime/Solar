@@ -86,6 +86,7 @@ type systemData = {
 	local_sun_distance: number;
 	local_sun_radius: number;
 	local_models: string[];
+	local_marker?: BABYLON.Mesh;
 	local_waypoints: Waypoint[];
 };
 
@@ -225,6 +226,8 @@ let systemData: systemData = {
 		"./models/model_16/",
 		"./models/model_15/",
 	],
+
+	local_marker: undefined,
 
 	local_waypoints: [
 		{
@@ -515,29 +518,39 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 
 	// Populate scene
 	{
-		let matSun: any = new BABYLON.StandardMaterial("matSun", scene); // FIXME
+		// local sun
 		{
+			let matSun: any = new BABYLON.StandardMaterial("matSun", scene); // FIXME
 			const c = new BABYLON.Color4(0.921, 0.753, 0.204);
 			matSun.emissiveColor = c; // required for glow layer
 			matSun.ambientColor = c;
+
+			sphere = BABYLON.MeshBuilder.CreateSphere('sphere', {diameter: systemData.local_sun_radius*2}, scene);
+			sphere.position = BV3([1,1,1]);
+			sphere.material = matSun;
 		}
 
-		// Local axes
-		drawAxes([0,0,0], [1,0,0], [0,1,0], [0,0,1], 1.5, scene);
+		// local marker
+		{
+			let parentObject = new BABYLON.Mesh("local_marker", scene);
 
-		// Basic scene components
-		const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 2, height: 2}, scene);
-		ground.receiveShadows = true;
+			// Local axes
+			let [axisX,axisY,axisZ] = drawAxes([0,0,0], [1,0,0], [0,1,0], [0,0,1], 1.5, scene);
+			axisX.setParent(parentObject);
+			axisY.setParent(parentObject);
+			axisZ.setParent(parentObject);
 
-		const cyl = BABYLON.MeshBuilder.CreateCylinder("cyl", {height: 1, diameter: 0.1}, scene);
-		cyl.position = BV3([0,0.5,0]);
+			// Basic scene components
+			const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 2, height: 2}, scene);
+			ground.receiveShadows = true;
+			ground.setParent(parentObject);
 
-		sphere = BABYLON.MeshBuilder.CreateSphere('sphere', {diameter: systemData.local_sun_radius*2}, scene);
-		sphere.position = BV3([1,1,1]);
-		sphere.material = matSun;
+			const cyl = BABYLON.MeshBuilder.CreateCylinder("cyl", {height: 1, diameter: 0.1}, scene);
+			cyl.position = BV3([0,0.5,0]);
+			cyl.setParent(parentObject);
 
-		let cube = BABYLON.MeshBuilder.CreateBox('cube', {size: 0.5}, scene);
-		cube.position = BV3([1,1,1]);
+			systemData.local_marker = parentObject;
+		}
 
 		// Glow layer for sun
 		let gl = new BABYLON.GlowLayer("glow", scene);
@@ -935,14 +948,61 @@ window.addEventListener('DOMContentLoaded', function() {
 	}
 });
 
-for (let w of systemData.local_waypoints) {
-	let {name,lat,lon} = w;
 
-	let [lat_dec,lon_dec] = [hms_to_dec(lat[0],lat[1],lat[2]),hms_to_dec(lon[0],lon[1],lon[2])];
-	let [lat_hms,lon_hms] = [dec_to_hms(lat_dec),dec_to_hms(lon_dec)];
-	let [lon_m,lat_m] = lonlat_degs_to_m(lon_dec, lat_dec);
+{
+	let uiContainer = document.getElementById('uiContainer');
 
-	console.log(`${name} ${lat} ${lon}`);
-	console.log(`  ${lat} => ${lat_dec} => ${lat_hms} => ${lat_m}`)
-	console.log(`  ${lon} => ${lon_dec} => ${lon_hms} => ${lon_m}`)
+	let div = document.createElement("div");
+
+	let control = document.createElement("select");
+
+	for (let w of systemData.local_waypoints) {
+		let {name,lat,lon} = w;
+
+		let [lat_dec,lon_dec] = [hms_to_dec(lat[0],lat[1],lat[2]),hms_to_dec(lon[0],lon[1],lon[2])];
+		let [lat_hms,lon_hms] = [dec_to_hms(lat_dec),dec_to_hms(lon_dec)];
+		let [lon_m,lat_m] = lonlat_degs_to_m(lon_dec, lat_dec);
+
+		console.log(`${name} ${lat} ${lon}`);
+		console.log(`  ${lat} => ${lat_dec} => ${lat_hms} => ${lat_m}`);
+		console.log(`  ${lon} => ${lon_dec} => ${lon_hms} => ${lon_m}`);
+
+		let option = document.createElement("option");
+		option.text = `${name} ${lat[0]}\"${lat[1]}'${lat[2]} ${lon[0]}\"${lon[1]}'${lon[2]}`;
+		control.add(option);
+	}
+
+	control.onchange = function() {
+		let idx = control.selectedIndex;
+		let waypoint = systemData.local_waypoints[idx];
+		let {lat,lon} = waypoint;
+		let lat_dec = hms_to_dec(lat[0],lat[1],lat[2]);
+		let lon_dec = hms_to_dec(lon[0],lon[1],lon[2]);
+		
+		console.log(control.value, idx);
+
+		systemData.spa.latitude  = lat_dec;
+		systemData.spa.longitude = lon_dec;
+
+		let x = (lon_dec-lon0) * lon_m_per_deg;
+		let z = (lat_dec-lat0) * lat_m_per_deg;
+		let y = 0; // elevation!
+
+		let vec = BV3([x,y,z])
+
+		systemData.localView.camera.lockedTarget = vec;
+
+		if (systemData.local_marker) {
+			systemData.local_marker.position = vec;
+		}
+
+		// Move current location and camera stuff
+
+		systemData.refreshUI();
+		systemData.refreshViews();
+	}
+
+	div.appendChild(control);
+
+	uiContainer?.appendChild(div);
 }
