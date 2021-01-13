@@ -1,6 +1,3 @@
-// https://en.wikipedia.org/wiki/Horizontal_coordinate_system
-// https://en.wikipedia.org/wiki/Geographic_coordinate_system
-
 import * as SPA  from './spa.js';
 import * as GEOM from './geom.js';
 import * as UI   from './ui.js';
@@ -15,6 +12,37 @@ import * as UI   from './ui.js';
 	**********************************************
 */
 
+// From model generation.
+
+const lon0 = -107.95972;
+const lat0 = 36.06069;
+
+const lon_m_per_deg = 89889.30427959062;
+const lat_m_per_deg = 111194.92664455873;
+
+function lonlat_degs_to_m(lon: number, lat: number): [number,number] {
+	return [ (lon-lon0)*lon_m_per_deg, (lat-lat0)*lat_m_per_deg ];
+}
+
+function hms_to_dec(h: number, m: number, s: number): number {
+	let c = (h<0) ? -1 : 1;
+	return h + (m*c)/60 + (s*c)/(60*60);
+}
+
+function dec_to_hms(dec: number): [number,number,number] {
+	let c = (dec<0) ? -1 : 1;
+
+	dec *= c;
+
+	let h = Math.floor(dec);
+	let x = (dec-h) * (60*60);
+	let m = Math.floor(x/60);
+	let s = Math.round(x%60);
+
+	h *= c;
+
+	return [h,m,s];
+}
 
 // Bit flags
 const RenderFlags = {
@@ -36,6 +64,12 @@ type View = {
 	objects: { [key: string]: any };
 };
 
+type Waypoint = {
+	name: string;
+	lat: number[];
+	lon: number[];
+};
+
 // Storage type for system data
 type systemData = {
 	uiControls:   UI.ControlGroup[];
@@ -51,8 +85,8 @@ type systemData = {
 
 	local_sun_distance: number;
 	local_sun_radius: number;
-
 	local_models: string[];
+	local_waypoints: Waypoint[];
 };
 
 
@@ -97,6 +131,7 @@ let systemData: systemData = {
 
 		null,
 
+		/*
 		{
 			caption: 'Time adjustments: delta UT1 (s), delta T (s)',
 			controls: [
@@ -115,6 +150,7 @@ let systemData: systemData = {
 		},
 
 		null,
+		*/
 
 		{
 			caption: 'Year, month, day',
@@ -162,7 +198,7 @@ let systemData: systemData = {
 		},
 	},
 
-	// View of the local shadows
+	// View of the local environment
 	localView: {
 		ready: false,
 		shouldRender: RenderFlags.Ignore,
@@ -178,7 +214,6 @@ let systemData: systemData = {
 		}
 	},
 
-//	local_sun_distance: 1e6,
 	local_sun_distance: 25000.0,
 	local_sun_radius: 500.0,
 
@@ -189,6 +224,39 @@ let systemData: systemData = {
 		"./models/model_17/",
 		"./models/model_16/",
 		"./models/model_15/",
+	],
+
+	local_waypoints: [
+		{
+			name: "Pueblo Bonito",
+			lat: [ 36 ,  3, 39],
+			lon: [-107, 57, 44],
+		},
+		{
+			name: "Pueblo Bonito",
+			lat: [ 36 ,  3, 39],
+			lon: [-107, 57, 42],
+		},
+		{
+			name: "Hillside Ruin",
+			lat: [ 36 , 3 , 38],
+			lon: [-107, 57, 35],
+		},
+		{
+			name: "Chetro Ketl",
+			lat: [ 36 , 3 , 37],
+			lon: [-107, 57, 15],
+		},
+		{
+			name: "McElmo Unit",
+			lat: [ 36 , 3 , 36],
+			lon: [-107, 57, 19],
+		},
+		{
+			name: "Pueblo Del Arroyo",
+			lat: [ 36 , 3 , 40],
+			lon: [-107, 57, 56],
+		},
 	],
 };
 
@@ -261,17 +329,6 @@ function drawMarker(
 	// Local axes
 
 	const [ax,ay,az] = drawAxes(pos_, xhat, yhat, zhat, r*2, scene);
-
-	// Sun direction
-	/*
-	const [x_,y_,z_] = pos_;
-	const p1 = BV3(pos_);
-	const p2 = BV3([x_+sun[0]*0.05, y_+sun[1]*0.05, z_+sun[2]*0.05]);
-	let sun_dir = BABYLON.Mesh.CreateLines("sunDir", [p1,p2], scene);
-	sun_dir.color = new BABYLON.Color3(0.5,0.5,0.5);
-
-	return [sphere, ax, ay, az, sun_dir];
-	*/
 
 	return [sphere, ax, ay, az];
 }
@@ -444,12 +501,6 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 
 	// Hemispheric light for ambient; change color/intensity with sunrise/sunset?
 	{
-		/*
-		let light_pos = [1,1,1];
-		let light_dir = GEOM.unit([0-light_pos[0], 0-light_pos[1], 0-light_pos[2]]);
-		light = new BABYLON.DirectionalLight('light1', BV3(light_dir), scene);
-		light.position = BV3(light_pos);
-		*/
 		let ambient = new BABYLON.HemisphericLight('hemi_light1', BV3([0,1,0]), scene);
 		ambient.intensity = 0.2;
 	}
@@ -563,83 +614,6 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 
 			document.getElementById('uiContainer')?.appendChild(div);
 		}
-
-
-
-   		/*
-		BABYLON.SceneLoader.ImportMesh(null, "./models/", "out.obj", scene,
-			function onSuccess(meshes, particleSystems, skeletons) {
-				console.log(`success! ${meshes.length}`);
-				let m = meshes[0];
-
-				m.receiveShadows = true;
-
-				//m.scaling = BV3([0.01, 0.01, 0.01]);
-
-				// We likely don't have vertex normals in the file to save space. Calculate them here.
-				let vtx = m.getVerticesData(BABYLON.VertexBuffer.PositionKind);
-				if (vtx != null) {
-					let nrm = new Float32Array(vtx.length);
-					BABYLON.VertexData.ComputeNormals(vtx, m.getIndices(), nrm);
-					m.setVerticesData(BABYLON.VertexBuffer.NormalKind, nrm);
-				}
-
-    			systemData.localView.objects.scenery = m;
-
-
-				let div = document.createElement("div");
-    			
-				{
-					let control = document.createElement("input");
-					control.type = "checkbox";
-					control.onchange = function() {
-						let c = control.checked;
-						if (c) {
-							shadowGenerator.addShadowCaster(m);
-						} else {
-							shadowGenerator.removeShadowCaster(m);
-						}
-						systemData.refreshViews();
-						console.log(control.checked);
-					};
-					div.appendChild(control);
-				}
-
-				{
-					let control = document.createElement("input");
-
-					let spa = systemData.spa;
-					let val = (spa.hour*60*60) + (spa.minute*60) + spa.second;
-
-					control.type = `range`;
-					Object.assign(control, {min: 0, max: 24*60*60, step: 1, value: val});
-					control.oninput = function() {
-						let val = parseInt(control.value);
-						let hour = Math.floor( (val / (60*60)) );
-						let minute = Math.floor( (val % (60*60)) / 60 );
-						let second = Math.floor( (val % (60*60)) % 60 );
-						console.log(val, hour, minute, second);
-						spa.hour = hour;
-						spa.minute = minute;
-						spa.second = second;
-						systemData.refreshUI();
-						systemData.refreshViews();
-					};
-					div.appendChild(control);
-				}
-
-				document.getElementById('uiContainer')?.appendChild(div);
-
-   				systemData.refreshViews();
-			},
-			function onProgress(scene) {
-				console.log("progress!");
-			},
-			function onError(scene) {
-				console.log("error!");
-			},
-		);
-	*/
 	}
 
 	// Add objects to system data
@@ -677,7 +651,6 @@ systemData.refreshViews = function() {
 			let txt = '';
 			outContainer.innerHTML = '';
 			for (let line of lines) {
-				//txt += `${line.replace(/ /g,'&nbsp')}<br>`;
 				txt += `${line}<br>`;
 			}
 			outContainer.innerHTML = txt;
@@ -810,7 +783,7 @@ systemData.refreshSPA = function() {
 {
 	let d = new Date();
 	let spa = systemData.spa;
-	const [lat, lon] = [ 35.2226, -97.4395 ]; // Norman, OK
+	const [lat, lon] = [ lat0, lon0 ];
 
 	spa.latitude      = lat;
 	spa.longitude     = lon;
@@ -891,7 +864,7 @@ systemData.refreshSPA = function() {
 // Nudge refresh after 100 ms.
 window.setTimeout( function() { systemData.refreshViews(); }, 100);
 
-// Ensure vies updated if window resized
+// Ensure views updated if window resized
 window.addEventListener('resize', function () {
 	systemData.globalView.engine.resize();
 	systemData.localView.engine.resize();
@@ -899,7 +872,9 @@ window.addEventListener('resize', function () {
 });
 
 window.addEventListener('DOMContentLoaded', function() {
-	// Update globe view
+	//
+	// Launch global view render loop
+	//
 	{
 		const twoPi = 2.0*Math.PI;
 		const pulse_period = 2.0*1000, pulse_scale = 0.2; // period in ms
@@ -943,7 +918,9 @@ window.addEventListener('DOMContentLoaded', function() {
 		});
 	}
 
-	// Update local view
+	//
+	// Launch local view render loop
+	//
 	{
 		let view = systemData.localView;
 
@@ -957,3 +934,15 @@ window.addEventListener('DOMContentLoaded', function() {
 		});
 	}
 });
+
+for (let w of systemData.local_waypoints) {
+	let {name,lat,lon} = w;
+
+	let [lat_dec,lon_dec] = [hms_to_dec(lat[0],lat[1],lat[2]),hms_to_dec(lon[0],lon[1],lon[2])];
+	let [lat_hms,lon_hms] = [dec_to_hms(lat_dec),dec_to_hms(lon_dec)];
+	let [lon_m,lat_m] = lonlat_degs_to_m(lon_dec, lat_dec);
+
+	console.log(`${name} ${lat} ${lon}`);
+	console.log(`  ${lat} => ${lat_dec} => ${lat_hms} => ${lat_m}`)
+	console.log(`  ${lon} => ${lon_dec} => ${lon_hms} => ${lon_m}`)
+}
