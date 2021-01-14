@@ -108,14 +108,14 @@ let systemData: systemData = {
 		{
 			caption: 'Latitude',
 			controls: [
-				{ key: 'latitude',  hasSlider: true, min: -90,  max: 90,  def: 0, step: 0.100 }, // degrees
+				{ key: 'latitude',  hasSlider: true, min: -90,  max: 90,  def: 0, step: 0.1000 }, // degrees
 			],
 		},
 
 		{
 			caption: 'Longitude',
 			controls: [
-				{ key: 'longitude', hasSlider: true, min: -180, max: 180, def: 0, step: 0.100 }, // degrees
+				{ key: 'longitude', hasSlider: true, min: -180, max: 180, def: 0, step: 0.1000 }, // degrees
 			],
 		},
 
@@ -511,13 +511,30 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 	// Camera
 	{
 		camera.position = BV3([-4,4,0]);
-		camera.lowerRadiusLimit = 1;
+		camera.lowerRadiusLimit = 0;
 		camera.minZ = 0.1;
 		camera.maxZ = 100000;
-	}	
+	}
 
 	// Populate scene
 	{
+		let shadowGenerator;
+
+		// Set up some light effects
+		{
+			// Glow layer for sun
+			let gl = new BABYLON.GlowLayer("glow", scene);
+			gl.intensity = 0.5;
+
+			// Shadows
+	//		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
+			shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
+	//		const shadowGenerator = new BABYLON.ShadowGenerator(40960, light);
+	//		const shadowGenerator = new BABYLON.CascadedShadowGenerator(4096, light);
+	//		shadowGenerator.useBlurExponentialShadowMap = true;
+	//		shadowGenerator.useBlurCloseExponentialShadowMap = true;
+		}
+
 		// local sun
 		{
 			let matSun: any = new BABYLON.StandardMaterial("matSun", scene); // FIXME
@@ -549,22 +566,10 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 			cyl.position = BV3([0,0.5,0]);
 			cyl.setParent(parentObject);
 
+			shadowGenerator.addShadowCaster(cyl);
+
 			systemData.local_marker = parentObject;
 		}
-
-		// Glow layer for sun
-		let gl = new BABYLON.GlowLayer("glow", scene);
-		gl.intensity = 0.5;
-
-		// Shadows
-//		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
-		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
-//		const shadowGenerator = new BABYLON.ShadowGenerator(40960, light);
-//		const shadowGenerator = new BABYLON.CascadedShadowGenerator(4096, light);
-		shadowGenerator.addShadowCaster(cyl);
-		shadowGenerator.addShadowCaster(cube);
-//		shadowGenerator.useBlurExponentialShadowMap = true;
-//		shadowGenerator.useBlurCloseExponentialShadowMap = true;
 
 		// Load local models
 		for (let local_path of systemData.local_models) {
@@ -599,6 +604,7 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 			);
 		}
 
+		// Temp - "daytime" slider
 		{
 			let div = document.createElement("div");
 			
@@ -984,10 +990,48 @@ window.addEventListener('DOMContentLoaded', function() {
 		systemData.spa.latitude  = lat_dec;
 		systemData.spa.longitude = lon_dec;
 
+
 		let x = (lon_dec-lon0) * lon_m_per_deg;
 		let z = (lat_dec-lat0) * lat_m_per_deg;
-		let y = 0; // elevation!
+		let y = 0;
 
+		// Ray cast down from elevated position to find collision
+		// with mesh below.
+		{
+			let origin = BV3([x,+1000,z]);
+			let direction = BV3([0,-1,0]);
+			let ray = new BABYLON.Ray(origin,direction,2000);
+			let scene = systemData.localView.scene;
+			
+			/*
+			if (systemData.local_marker) {
+				systemData.local_marker.isPickable = false;
+			}
+			*/
+
+			let hit = scene.pickWithRay(ray, (m: BABYLON.Mesh) => {
+				let val = systemData.local_marker ? systemData.local_marker.parent : null;
+				return (!val || m === val); 
+			});
+
+			console.log(hit);
+
+			if (hit.hit) {
+				x = hit.pickedPoint.x;
+				y = hit.pickedPoint.y + 1.5; // slightly above; average height?
+				z = hit.pickedPoint.z;
+				console.log(`${x} ${y} ${z}`);
+			}
+			console.log(`${x} ${y} ${z}`);
+
+			/*
+			if (systemData.local_marker) {
+				systemData.local_marker.isPickable = true;
+			}
+			*/
+		}
+
+		console.log(`${x} ${y} ${z}`);
 		let vec = BV3([x,y,z])
 
 		systemData.localView.camera.lockedTarget = vec;
