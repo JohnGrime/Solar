@@ -128,12 +128,13 @@ Original message text below.
 "use strict";
 
 export {
-    SPA           as SPA,
+    SPA as SPA,
 
-    spa_alloc     as alloc,
-    spa_calculate as calculate,
-    spa_print     as print,
-    spa_test      as test,
+    spa_alloc       as alloc,
+    spa_calculate   as calculate,
+    spa_print       as print,
+    spa_test        as test,
+    spa_time_to_hms as time_to_hms,
 
     CalculateWhat as CalculateWhat,
 };
@@ -1460,30 +1461,31 @@ function timeStr(
 	return `${iiStr(a)}${sep}${iiStr(b)}${sep}${iiStr(c)}`;
 }
 
+function spa_time_to_hms(time: number) : number[] {
+	let int = Math.floor;
+	let min = 60.0*(time - int(time));
+	let sec = 60.0*(min - int(min));
+	return [int(time), int(min), int(sec)];
+}
+
 function spa_print(spa: SPA) : string[] {
 	let int = Math.floor;
 
 	let sunrise, sunset, transit;
 
 	{
-		let hour = spa.sunrise;
-		let min = 60.0*(spa.sunrise - int(spa.sunrise));
-		let sec = 60.0*(min - int(min));
-		sunrise = `  Sunrise:       ${timeStr(hour, min, sec)} Local`;
+		let [h,m,s] = spa_time_to_hms(spa.sunrise);
+		sunrise = `  Sunrise:       ${timeStr(h, m, s)} Local`;
 	}
 
 	{
-		let hour = spa.sunset;
-		let min = 60.0*(spa.sunset - int(spa.sunset));
-		let sec = 60.0*(min - int(min));
-		sunset = `  Sunset:        ${timeStr(hour, min, sec)} Local`;
+		let [h,m,s] = spa_time_to_hms(spa.sunset);
+		sunset = `  Sunset:        ${timeStr(h, m, s)} Local`;
 	}
 
 	{
-		let hour = spa.suntransit;
-		let min = 60.0*(spa.suntransit - int(spa.suntransit));
-		let sec = 60.0*(min - int(min));
-		transit = `  Transit:       ${timeStr(hour, min, sec)} Local`;
+		let [h,m,s] = spa_time_to_hms(spa.suntransit);
+		transit = `  Transit:       ${timeStr(h, m, s)} Local`;
 	}
 
 	return [

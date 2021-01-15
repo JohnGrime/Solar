@@ -44,6 +44,37 @@ function dec_to_hms(dec: number): [number,number,number] {
 	return [h,m,s];
 }
 
+// https://gist.github.com/paulkaplan/5184275
+function kelvin_to_rgb(K: number): [number,number,number] {
+	let temp = K / 100;
+	let r,g,b;
+
+	if (temp <= 66) {
+		r = 255;
+		g = temp;
+		g = 99.4708025861 * Math.log(g) - 161.1195681661;
+
+		if (temp <= 19) {
+			b = 0;
+		} else {
+			b = temp - 10;
+			b = 138.5177312231 * Math.log(b) - 305.0447927307;
+		}
+	} else {
+		r = temp - 60;
+		r = 329.698727446 * Math.pow(r, -0.1332047592);
+
+		g = temp - 60;
+		g = 288.1221695283 * Math.pow(g, -0.0755148492 );
+
+		b = 255;
+	}
+
+	let clamp = (x: number, x0: number, x1: number) => Math.min(Math.max(x,x0), x1);
+
+	return [clamp(r,0,255), clamp(g,0,255), clamp(b,0,255)]
+}
+
 // Bit flags
 const RenderFlags = {
 	Ignore: 0,
@@ -88,6 +119,16 @@ type systemData = {
 	local_models: string[];
 	local_marker?: BABYLON.Mesh;
 	local_waypoints: Waypoint[];
+
+	K0: number; // min color temp, Kelvin
+	K1: number; // max color temp, Kelvin
+
+	ambient0: number; // min ambient intensity
+	ambient1: number; // max ambient intensity
+	ambient_light?: BABYLON.HemisphericLight;
+
+	skyblue0: BABYLON.Color3;
+	skyblue1: BABYLON.Color3;
 };
 
 
@@ -261,6 +302,16 @@ let systemData: systemData = {
 			lon: [-107, 57, 56],
 		},
 	],
+
+	K0: 1800,
+	K1: 16000,
+
+	ambient0: 0.2,
+	ambient1: 1.0,
+	ambient_light: undefined,
+
+	skyblue0: new BABYLON.Color3(0.047, 0.078, 0.27),
+	skyblue1: new BABYLON.Color3(0, 0.75, 1),
 };
 
 
@@ -506,13 +557,14 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 	{
 		let ambient = new BABYLON.HemisphericLight('hemi_light1', BV3([0,1,0]), scene);
 		ambient.intensity = 0.2;
+		systemData.ambient_light = ambient;
 	}
 
 	// Camera
 	{
 		camera.position = BV3([-4,4,0]);
 		camera.lowerRadiusLimit = 0;
-		camera.minZ = 0.1;
+		camera.minZ = 0.05;
 		camera.maxZ = 100000;
 	}
 
@@ -528,10 +580,14 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 
 			// Shadows
 	//		const shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
-			shadowGenerator = new BABYLON.ShadowGenerator(1024, light);
+			shadowGenerator = new BABYLON.ShadowGenerator(4096, light);
 	//		const shadowGenerator = new BABYLON.ShadowGenerator(40960, light);
 	//		const shadowGenerator = new BABYLON.CascadedShadowGenerator(4096, light);
-	//		shadowGenerator.useBlurExponentialShadowMap = true;
+	
+//			shadowGenerator.useBlurExponentialShadowMap = true;
+//			shadowGenerator.useKernelBlur = true;
+//			shadowGenerator.blurKernel = 64;
+	
 	//		shadowGenerator.useBlurCloseExponentialShadowMap = true;
 		}
 
@@ -558,7 +614,7 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 			axisZ.setParent(parentObject);
 
 			// Basic scene components
-			const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 2, height: 2}, scene);
+			const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 1, height: 1}, scene);
 			ground.receiveShadows = true;
 			ground.setParent(parentObject);
 
@@ -602,36 +658,6 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 					console.log("error!");
 				}
 			);
-		}
-
-		// Temp - "daytime" slider
-		{
-			let div = document.createElement("div");
-			
-			{
-				let control = document.createElement("input");
-
-				let spa = systemData.spa;
-				let val = (spa.hour*60*60) + (spa.minute*60) + spa.second;
-
-				control.type = `range`;
-				Object.assign(control, {min: 0, max: 24*60*60, step: 1, value: val});
-				control.oninput = function() {
-					let val = parseInt(control.value);
-					let hour = Math.floor( (val / (60*60)) );
-					let minute = Math.floor( (val % (60*60)) / 60 );
-					let second = Math.floor( (val % (60*60)) % 60 );
-					console.log(val, hour, minute, second);
-					spa.hour = hour;
-					spa.minute = minute;
-					spa.second = second;
-					systemData.refreshUI();
-					systemData.refreshViews();
-				};
-				div.appendChild(control);
-			}
-
-			document.getElementById('uiContainer')?.appendChild(div);
 		}
 	}
 
@@ -755,6 +781,38 @@ systemData.refreshViews = function() {
 		sphere.position.x = light.position.x;
 		sphere.position.y = light.position.y;
 		sphere.position.z = light.position.z;
+
+		// update light "temperature"
+		{
+			let spa = systemData.spa;
+			let t = spa.hour + (spa.minute*60 + spa.second)/(60*60);
+			let {K0, K1} = systemData;
+			let [u, K] = [0, 0];
+			let [r,g,b] = [0,0,0];
+
+			if (spa.sunrise <= t && t <= spa.sunset) {
+
+				if (t < spa.suntransit) {
+					u = (t - spa.sunrise) / (spa.suntransit - spa.sunrise);
+					K = K0 + u*(K1-K0)
+				} else {
+					u = (t - spa.suntransit) / (spa.sunset - spa.suntransit);
+					u = 1-u;
+					K = K0 + u*(K1-K0)
+				}
+
+				[r,g,b] = kelvin_to_rgb(K);
+			}
+
+			let ambient = systemData.ambient_light;
+			if (ambient) {
+				let [a0, a1] = [systemData.ambient0, systemData.ambient1];
+				ambient.diffuse = new BABYLON.Color3(r/255,g/255,b/255);
+				ambient.intensity = a0 + u*(a1-a0);
+			}
+
+			scene.clearColor = BABYLON.Color3.Lerp(systemData.skyblue0, systemData.skyblue1, u);
+		}
 	}
 
 	// Trigger single-frame update
@@ -960,7 +1018,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
 	let div = document.createElement("div");
 
-	let control = document.createElement("select");
+	let location = document.createElement("select");
 
 	for (let w of systemData.local_waypoints) {
 		let {name,lat,lon} = w;
@@ -975,21 +1033,18 @@ window.addEventListener('DOMContentLoaded', function() {
 
 		let option = document.createElement("option");
 		option.text = `${name} ${lat[0]}\"${lat[1]}'${lat[2]} ${lon[0]}\"${lon[1]}'${lon[2]}`;
-		control.add(option);
+		location.add(option);
 	}
 
-	control.onchange = function() {
-		let idx = control.selectedIndex;
+	location.onchange = function() {
+		let idx = location.selectedIndex;
 		let waypoint = systemData.local_waypoints[idx];
 		let {lat,lon} = waypoint;
 		let lat_dec = hms_to_dec(lat[0],lat[1],lat[2]);
 		let lon_dec = hms_to_dec(lon[0],lon[1],lon[2]);
 		
-		console.log(control.value, idx);
-
 		systemData.spa.latitude  = lat_dec;
 		systemData.spa.longitude = lon_dec;
-
 
 		let x = (lon_dec-lon0) * lon_m_per_deg;
 		let z = (lat_dec-lat0) * lat_m_per_deg;
@@ -1003,50 +1058,99 @@ window.addEventListener('DOMContentLoaded', function() {
 			let ray = new BABYLON.Ray(origin,direction,2000);
 			let scene = systemData.localView.scene;
 			
-			/*
-			if (systemData.local_marker) {
-				systemData.local_marker.isPickable = false;
-			}
-			*/
-
 			let hit = scene.pickWithRay(ray, (m: BABYLON.Mesh) => {
 				let val = systemData.local_marker ? systemData.local_marker.parent : null;
 				return (!val || m === val); 
 			});
 
-			console.log(hit);
-
 			if (hit.hit) {
 				x = hit.pickedPoint.x;
-				y = hit.pickedPoint.y + 1.5; // slightly above; average height?
+				y = hit.pickedPoint.y + 1.5; // slightly above; average observer height?
 				z = hit.pickedPoint.z;
-				console.log(`${x} ${y} ${z}`);
 			}
-			console.log(`${x} ${y} ${z}`);
-
-			/*
-			if (systemData.local_marker) {
-				systemData.local_marker.isPickable = true;
-			}
-			*/
 		}
 
-		console.log(`${x} ${y} ${z}`);
+		// Set camera target and local marker position to hit coords
 		let vec = BV3([x,y,z])
-
 		systemData.localView.camera.lockedTarget = vec;
 
 		if (systemData.local_marker) {
 			systemData.local_marker.position = vec;
 		}
 
-		// Move current location and camera stuff
-
 		systemData.refreshUI();
 		systemData.refreshViews();
 	}
 
-	div.appendChild(control);
+	let sunrise = document.createElement("button");
+	sunrise.innerHTML = "Sunrise";
+	sunrise.onclick = function () {
+		let spa = systemData.spa;
+		let [h,m,s] = SPA.time_to_hms(spa.sunrise);
+		spa.hour = h;
+		spa.minute = m;
+		spa.second = s;
+		systemData.refreshUI();
+		systemData.refreshViews();
+	}
+
+	let transit = document.createElement("button");
+	transit.innerHTML = "Transit";
+	transit.onclick = function () {
+		let spa = systemData.spa;
+		let [h,m,s] = SPA.time_to_hms(spa.suntransit);
+		spa.hour = h;
+		spa.minute = m;
+		spa.second = s;
+		systemData.refreshUI();
+		systemData.refreshViews();
+	}
+
+	let sunset = document.createElement("button");
+	sunset.innerHTML = "Sunset";
+	sunset.onclick = function () {
+		let spa = systemData.spa;
+		let [h,m,s] = SPA.time_to_hms(spa.sunset);
+		spa.hour = h;
+		spa.minute = m;
+		spa.second = s;
+		systemData.refreshUI();
+		systemData.refreshViews();
+	}
+
+	div.appendChild(location);
+	div.appendChild(sunrise);
+	div.appendChild(transit);
+	div.appendChild(sunset);
 
 	uiContainer?.appendChild(div);
+
+	// Temp - "daytime" slider
+	{
+		let div = document.createElement("div");
+		
+		let control = document.createElement("input");
+
+		let spa = systemData.spa;
+		let val = (spa.hour*60*60) + (spa.minute*60) + spa.second;
+
+		control.type = `range`;
+		Object.assign(control, {min: 0, max: 24*60*60, step: 1, value: val});
+		control.oninput = function() {
+			let val = parseInt(control.value);
+			let hour = Math.floor( (val / (60*60)) );
+			let minute = Math.floor( (val % (60*60)) / 60 );
+			let second = Math.floor( (val % (60*60)) % 60 );
+			spa.hour = hour;
+			spa.minute = minute;
+			spa.second = second;
+			systemData.refreshUI();
+			systemData.refreshViews();
+		};
+
+		div.appendChild(control);
+
+		document.getElementById('uiContainer')?.appendChild(div);
+	}
+
 }

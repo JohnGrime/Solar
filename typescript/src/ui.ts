@@ -109,6 +109,11 @@ function createUI(
 				}
 			}
 
+			num.oninput = function() {
+				if (control && control.set) control.set(num.value);
+				if (updateView) updateView();
+			}
+
 			control.set = function (x: any) {
 				let value = sanitiseNumber(parseFloat, x, min, max, def);
 				num.value = `${value}`;
