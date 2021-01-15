@@ -310,8 +310,8 @@ let systemData: systemData = {
 	ambient1: 1.0,
 	ambient_light: undefined,
 
-	skyblue0: new BABYLON.Color3(0.047, 0.078, 0.27),
-	skyblue1: new BABYLON.Color3(0, 0.75, 1),
+	skyblue0: new BABYLON.Color3(0.027, 0.086, 0.20),
+	skyblue1: new BABYLON.Color3(0.48, 0.67, 0.86),
 };
 
 
