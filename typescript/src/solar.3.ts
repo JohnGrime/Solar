@@ -12,7 +12,7 @@ import * as UI   from './ui.js';
 	**********************************************
 */
 
-// From model generation.
+// From model generation parameters.
 
 const lon0 = -107.95972;
 const lat0 = 36.06069;
@@ -95,10 +95,22 @@ type View = {
 	objects: { [key: string]: any };
 };
 
+// A named position; lat/lon are [degs,mins.secs]
 type Waypoint = {
 	name: string;
 	lat: number[];
 	lon: number[];
+};
+
+type DynamicColors = {
+	K0: number; // min color temp, Kelvin
+	K1: number; // max color temp, Kelvin
+
+	ambient0: number; // min ambient intensity
+	ambient1: number; // max ambient intensity
+
+	skyblue0: BABYLON.Color3; // blue of sky at night
+	skyblue1: BABYLON.Color3; // blue of sky at midday
 };
 
 // Storage type for system data
@@ -120,15 +132,8 @@ type systemData = {
 	local_marker?: BABYLON.Mesh;
 	local_waypoints: Waypoint[];
 
-	K0: number; // min color temp, Kelvin
-	K1: number; // max color temp, Kelvin
-
-	ambient0: number; // min ambient intensity
-	ambient1: number; // max ambient intensity
+	dynamic_colors: DynamicColors;
 	ambient_light?: BABYLON.HemisphericLight;
-
-	skyblue0: BABYLON.Color3;
-	skyblue1: BABYLON.Color3;
 };
 
 
@@ -303,15 +308,18 @@ let systemData: systemData = {
 		},
 	],
 
-	K0: 1800,
-	K1: 16000,
+	dynamic_colors: {
+		K0: 1800,
+		K1: 16000,
 
-	ambient0: 0.2,
-	ambient1: 1.0,
+		ambient0: 0.2,
+		ambient1: 1.0,
+
+		skyblue0: new BABYLON.Color3(0.027, 0.086, 0.20),
+		skyblue1: new BABYLON.Color3(0.48, 0.67, 0.86),
+	},
+
 	ambient_light: undefined,
-
-	skyblue0: new BABYLON.Color3(0.027, 0.086, 0.20),
-	skyblue1: new BABYLON.Color3(0.48, 0.67, 0.86),
 };
 
 
@@ -564,7 +572,7 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 	{
 		camera.position = BV3([-4,4,0]);
 		camera.lowerRadiusLimit = 0;
-		camera.minZ = 0.05;
+		camera.minZ = 0.1;
 		camera.maxZ = 100000;
 	}
 
@@ -614,9 +622,9 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 			axisZ.setParent(parentObject);
 
 			// Basic scene components
-			const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 1, height: 1}, scene);
-			ground.receiveShadows = true;
-			ground.setParent(parentObject);
+//			const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 1, height: 1}, scene);
+//			ground.receiveShadows = true;
+//			ground.setParent(parentObject);
 
 			const cyl = BABYLON.MeshBuilder.CreateCylinder("cyl", {height: 1, diameter: 0.1}, scene);
 			cyl.position = BV3([0,0.5,0]);
@@ -782,11 +790,11 @@ systemData.refreshViews = function() {
 		sphere.position.y = light.position.y;
 		sphere.position.z = light.position.z;
 
-		// update light "temperature"
+		// Update ambient light and sky colors
 		{
 			let spa = systemData.spa;
 			let t = spa.hour + (spa.minute*60 + spa.second)/(60*60);
-			let {K0, K1} = systemData;
+			let {K0, K1, ambient0, ambient1, skyblue0, skyblue1} = systemData.dynamic_colors;
 			let [u, K] = [0, 0];
 			let [r,g,b] = [0,0,0];
 
@@ -806,12 +814,11 @@ systemData.refreshViews = function() {
 
 			let ambient = systemData.ambient_light;
 			if (ambient) {
-				let [a0, a1] = [systemData.ambient0, systemData.ambient1];
 				ambient.diffuse = new BABYLON.Color3(r/255,g/255,b/255);
-				ambient.intensity = a0 + u*(a1-a0);
+				ambient.intensity = ambient0 + u*(ambient1-ambient0);
 			}
 
-			scene.clearColor = BABYLON.Color3.Lerp(systemData.skyblue0, systemData.skyblue1, u);
+			scene.clearColor = BABYLON.Color3.Lerp(skyblue0, skyblue1, u);
 		}
 	}
 
@@ -1086,10 +1093,7 @@ window.addEventListener('DOMContentLoaded', function() {
 	sunrise.innerHTML = "Sunrise";
 	sunrise.onclick = function () {
 		let spa = systemData.spa;
-		let [h,m,s] = SPA.time_to_hms(spa.sunrise);
-		spa.hour = h;
-		spa.minute = m;
-		spa.second = s;
+		[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunrise);
 		systemData.refreshUI();
 		systemData.refreshViews();
 	}
@@ -1098,10 +1102,7 @@ window.addEventListener('DOMContentLoaded', function() {
 	transit.innerHTML = "Transit";
 	transit.onclick = function () {
 		let spa = systemData.spa;
-		let [h,m,s] = SPA.time_to_hms(spa.suntransit);
-		spa.hour = h;
-		spa.minute = m;
-		spa.second = s;
+		[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.suntransit);
 		systemData.refreshUI();
 		systemData.refreshViews();
 	}
@@ -1110,10 +1111,7 @@ window.addEventListener('DOMContentLoaded', function() {
 	sunset.innerHTML = "Sunset";
 	sunset.onclick = function () {
 		let spa = systemData.spa;
-		let [h,m,s] = SPA.time_to_hms(spa.sunset);
-		spa.hour = h;
-		spa.minute = m;
-		spa.second = s;
+		[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunset);
 		systemData.refreshUI();
 		systemData.refreshViews();
 	}
@@ -1125,7 +1123,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
 	uiContainer?.appendChild(div);
 
-	// Temp - "daytime" slider
+	// "Daytime" slider
 	{
 		let div = document.createElement("div");
 		
