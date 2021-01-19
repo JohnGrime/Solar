@@ -75,6 +75,135 @@ function kelvin_to_rgb(K: number): [number,number,number] {
 	return [clamp(r,0,255), clamp(g,0,255), clamp(b,0,255)]
 }
 
+//
+// https://phabricator.kde.org/R175:55e1d14fe900a5ac1acd3a76dfa51f8ccfa67b21
+//
+
+enum Season {
+	JuneSolstice,
+	DecemberSolstice,
+	MarchEquinox,
+	SeptemberEquinox
+}
+
+function meanJDE(season: Season, year: number): number {
+	if (year <= 1000) {
+		// Astronomical Algorithms, Jean Meeus, chapter 26, table 26.A
+		// mean season Julian dates for years -1000 to 1000
+		const y = year / 1000.0;
+		switch (season) {
+			case Season.MarchEquinox:
+			return 1721139.29189 + (365242.13740 * y) + (0.06134 * Math.pow(y, 2)) + (0.00111 * Math.pow(y, 3)) - (0.00071 * Math.pow(y, 4));
+
+			case Season.JuneSolstice:
+			return 1721233.25401 + (365241.72562 * y) - (0.05323 * Math.pow(y, 2)) + (0.00907 * Math.pow(y, 3)) + (0.00025 * Math.pow(y, 4));
+
+			case Season.SeptemberEquinox:
+			return 1721325.70455 + (365242.49558 * y) - (0.11677 * Math.pow(y, 2)) - (0.00297 * Math.pow(y, 3)) + (0.00074 * Math.pow(y, 4));
+
+			case Season.DecemberSolstice:
+			return 1721414.39987 + (365242.88257 * y) - (0.00769 * Math.pow(y, 2)) - (0.00933 * Math.pow(y, 3)) - (0.00006 * Math.pow(y, 4));
+
+			default:
+			return 0;
+		}
+	} else {
+		// Astronomical Algorithms, Jean Meeus, chapter 26, table 26.B
+		// mean season Julian dates for years 1000 to 3000
+		const y = (year - 2000) / 1000.0;
+		switch (season) {
+			case Season.MarchEquinox:
+			return 2451623.80984 + (365242.37404 * y) + (0.05169 * Math.pow(y, 2)) - (0.00411 * Math.pow(y, 3)) - (0.00057 * Math.pow(y, 4));
+
+			case Season.JuneSolstice:
+			return 2451716.56767 + (365241.62603 * y) + (0.00325 * Math.pow(y, 2)) + (0.00888 * Math.pow(y, 3)) - (0.00030 * Math.pow(y, 4));
+
+			case Season.SeptemberEquinox:
+			return 2451810.21715 + (365242.01767 * y) - (0.11575 * Math.pow(y, 2)) + (0.00337 * Math.pow(y, 3)) + (0.00078 * Math.pow(y, 4));
+
+			case Season.DecemberSolstice:
+			return 2451900.05952 + (365242.74049 * y) - (0.06223 * Math.pow(y, 2)) - (0.00823 * Math.pow(y, 3)) + (0.00032 * Math.pow(y, 4));
+
+			default:
+			return 0;
+		}
+	}
+
+	return 0;
+}
+
+function periodicTerms(t: number): number {
+	const rad = (x: number) => x*(Math.PI/180.0);
+
+	// Astronomical Algorithms, Jean Meeus, chapter 26, table 26.C
+	// The table gives the periodic terms in degrees, but the values are converted to radians
+	// at compile time so that they can be passed to std::cos()
+
+	const periodic: number[][] = [
+		[485, rad(324.96), rad( 1934.136)], [203, rad(337.23), rad(32964.467)], [199, rad(342.08), rad(   20.186)], [182, rad( 27.85), rad(445267.112)],
+		[156, rad( 73.14), rad(45036.886)], [136, rad(171.52), rad(22518.443)], [ 77, rad(222.54), rad(65928.934)], [ 74, rad(296.72), rad(  3034.906)],
+		[ 70, rad(243.58), rad( 9037.513)], [ 58, rad(119.81), rad(33718.147)], [ 52, rad(297.17), rad(  150.678)], [ 50, rad( 21.02), rad(  2281.226)],
+		[ 45, rad(247.54), rad(29929.562)], [ 44, rad(325.15), rad(31555.956)], [ 29, rad( 60.93), rad( 4443.417)], [ 18, rad(155.12), rad( 67555.328)],
+		[ 17, rad(288.79), rad( 4562.452)], [ 16, rad(198.04), rad(62894.029)], [ 14, rad(199.76), rad(31436.921)], [ 12, rad( 95.39), rad( 14577.848)],
+		[ 12, rad(287.11), rad(31931.756)], [ 12, rad(320.81), rad(34777.259)], [  9, rad(227.73), rad( 1222.114)], [  8, rad( 15.45), rad( 16859.074)]		
+	];
+
+	let val: number = 0;
+
+	for (let [a,b_rad,c_rad] of periodic) {
+		val += a * Math.cos(b_rad + c_rad * t);
+	}
+
+	return val;
+}
+
+// Returns julian date of given season in given year
+function seasonJD(season: Season, year: number): number {
+	// Astronomical Algorithms, Jean Meeus, chapter 26
+	const jde0 = meanJDE(season, year);
+	const T = (jde0 - 2451545.0) / 36525;
+	const W_deg = 35999.373 * T + 2.47;
+	const W_rad = W_deg * (Math.PI / 180.0);
+	const dLambda = 1 + (0.0334 * Math.cos(W_rad)) + (0.0007 * Math.cos(2 * W_rad));
+	const S = periodicTerms(T);
+	return jde0 + (0.00001 * S) / dLambda;
+}
+
+// https://quasar.as.utexas.edu/BillInfo/JulianDatesG.html
+function dmy_from_JD(jd: number): number[] {
+	const Q = Math.floor(jd + 0.5);
+	const Z = Math.floor(Q);
+	const W = Math.floor((Z-1867216.25) / 36524.25);
+	const X = Math.floor(W/4);
+	const A = Math.floor(Z+1+W - X);
+	const B = Math.floor(A+1524);
+	const C = Math.floor((B-122.1) / 365.25);
+	const D = Math.floor(365.25 * C);
+	const E = Math.floor((B-D) / 30.6001);
+	const F = Math.floor(30.6001 * E);
+	const Day = B-D-F+(Q-Z)
+	const Month = (E-1 > 12) ? E-13 : E-1; // must get number less than or equal to 12; E-1 or E-13
+	const Year = (Month <= 2) ? (C-4715) : (C-4716); // C-4715 (if Month is January or February) or C-4716 (otherwise)}
+	return [Day, Month, Year];
+}
+
+function dmy_from_JD2(J: number): number[] {
+	const int = (x: number) => Math.floor(x);
+	const div = (x: number, y: number) => int(x/y);
+	const mod = (x: number, y: number) => x%y;
+
+	const f = J + 1401 + div( div((4*J+274277),146097)*3, 4) + -38;
+	const e = 4*f + 3;
+	const g = div(mod(e,1461), 4);
+	const h = 5*g + 2;
+	const day = div(mod(h,153), 5) + 1;
+	const month = mod(div(h,153)+2,12) + 1;
+	const year = div(e,1461) - 4716 + div(12+2-month, 12);
+
+	return [day, month, year];
+}
+
+
 // Bit flags
 const RenderFlags = {
 	Ignore: 0,
@@ -167,6 +296,7 @@ let systemData: systemData = {
 
 		null,
 
+		/*
 		{
 			caption: 'Elevation (m), pressure (mbar), temperature (C)',
 			controls: [
@@ -178,7 +308,6 @@ let systemData: systemData = {
 
 		null,
 
-		/*
 		{
 			caption: 'Time adjustments: delta UT1 (s), delta T (s)',
 			controls: [
@@ -622,9 +751,9 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 			axisZ.setParent(parentObject);
 
 			// Basic scene components
-//			const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 1, height: 1}, scene);
-//			ground.receiveShadows = true;
-//			ground.setParent(parentObject);
+			const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 1, height: 1}, scene);
+			ground.receiveShadows = true;
+			ground.setParent(parentObject);
 
 			const cyl = BABYLON.MeshBuilder.CreateCylinder("cyl", {height: 1, diameter: 0.1}, scene);
 			cyl.position = BV3([0,0.5,0]);
@@ -644,8 +773,6 @@ function populateLocalView(canvas: any) : void { // FIXME: input type
 					let m = meshes[0];
 
 					m.receiveShadows = true;
-
-					//m.scaling = BV3([0.01, 0.01, 0.01]);
 
 					// We likely don't have vertex normals in the file to save space. Calculate them here.
 					let vtx = m.getVerticesData(BABYLON.VertexBuffer.PositionKind);
@@ -867,10 +994,9 @@ systemData.refreshSPA = function() {
 {
 	let d = new Date();
 	let spa = systemData.spa;
-	const [lat, lon] = [ lat0, lon0 ];
 
-	spa.latitude      = lat;
-	spa.longitude     = lon;
+	spa.latitude      = lat0;
+	spa.longitude     = lon0;
 
 	spa.elevation     = 1850;
 	spa.pressure      = 820;
@@ -1149,6 +1275,35 @@ window.addEventListener('DOMContentLoaded', function() {
 		div.appendChild(control);
 
 		document.getElementById('uiContainer')?.appendChild(div);
+	}
+
+	{
+		let jd = 0;
+		let [d,m,y] = [0,0,0];
+
+		for (let what of [Season.MarchEquinox, Season.SeptemberEquinox, Season.JuneSolstice, Season.DecemberSolstice]) {
+			jd = seasonJD(what, 2021);
+			[d,m,y] = dmy_from_JD(jd);
+			console.log(Season[what], jd, d, m, y);
+			[d,m,y] = dmy_from_JD2(jd);
+			console.log(Season[what], jd, d, m, y);
+		}
+
+		for (let what of [Season.MarchEquinox, Season.SeptemberEquinox, Season.JuneSolstice, Season.DecemberSolstice]) {
+			jd = seasonJD(what, 1412);
+			[d,m,y] = dmy_from_JD(jd);
+			console.log(Season[what], jd, d, m, y);
+			[d,m,y] = dmy_from_JD2(jd);
+			console.log(Season[what], jd, d, m, y);
+		}
+
+		for (let what of [Season.MarchEquinox, Season.SeptemberEquinox, Season.JuneSolstice, Season.DecemberSolstice]) {
+			jd = seasonJD(what, 1954);
+			[d,m,y] = dmy_from_JD(jd);
+			console.log(Season[what], jd, d, m, y);
+			[d,m,y] = dmy_from_JD2(jd);
+			console.log(Season[what], jd, d, m, y);
+		}
 	}
 
 }
