@@ -24,6 +24,8 @@ function lonlat_degs_to_m(lon: number, lat: number): [number,number] {
 	return [ (lon-lon0)*lon_m_per_deg, (lat-lat0)*lat_m_per_deg ];
 }
 
+// hour, minute, second <=> decimal hour
+
 function hms_to_dec(h: number, m: number, s: number): number {
 	let c = (h<0) ? -1 : 1;
 	return h + (m*c)/60 + (s*c)/(60*60);
@@ -42,6 +44,21 @@ function dec_to_hms(dec: number): [number,number,number] {
 	h *= c;
 
 	return [h,m,s];
+}
+
+// hour, minute, second <=> seconds
+
+function hms_to_sec(h: number, m: number, s: number): number {
+	const [HOUR, MIN] = [60*60, 60]
+	return h*HOUR + m*MIN + s
+}
+
+function sec_to_hms(s: number): [number, number, number] {
+	const [HOUR, MIN] = [60*60, 60]
+	let _h = Math.floor( (s/HOUR) )
+	let _m = Math.floor( (s%HOUR) / MIN )
+	let _s = Math.floor( (s%HOUR) % MIN )
+	return [_h, _m, _s]
 }
 
 // https://gist.github.com/paulkaplan/5184275
@@ -472,7 +489,6 @@ function drawAxes(
 	L: number,
 	scene: any ) : BABYLON.LinesMesh[]
 {
-//	let [x,y,z] = [[],[],[]]; // no TypeScript equivalent?
 	let x: number[] = [], y: number[] = [], z: number[] = [];
 
 	for (let i=0; i<3; i++) {
@@ -532,8 +548,7 @@ function drawMarker(
 */
 
 
-//function createScene(canvas: any) : any { // FIXME: input/return types
-function createView(canvas: any) : [BABYLON.Engine, BABYLON.Scene, BABYLON.ArcRotateCamera] { // FIXME: input/return types
+function createView(canvas: HTMLCanvasElement) : [BABYLON.Engine, BABYLON.Scene, BABYLON.ArcRotateCamera] {
 	let engine = new BABYLON.Engine(canvas, true);
 	let scene = new BABYLON.Scene(engine);
 	let camera = new BABYLON.ArcRotateCamera('camera', 0,0,0, BV3([0,0,0]), scene);
@@ -541,7 +556,7 @@ function createView(canvas: any) : [BABYLON.Engine, BABYLON.Scene, BABYLON.ArcRo
 	return [engine, scene, camera];
 }
 
-function populateGlobalView(canvas: any) : void { // FIXME: input type
+function populateGlobalView(canvas: HTMLCanvasElement) {
 	let [engine, scene, camera] = createView(canvas);
 	let light: any, sphere: any; // FIXME
 
@@ -678,7 +693,7 @@ function populateGlobalView(canvas: any) : void { // FIXME: input type
 	systemData.globalView.ready = true;
 }
 
-function populateLocalView(canvas: any) : void { // FIXME: input type
+function populateLocalView(canvas: HTMLCanvasElement) {
 	let [engine, scene, camera] = createView(canvas);
 	let light: any, sphere: any; // FIXME
 	
@@ -824,6 +839,8 @@ systemData.refreshViews = function() {
 	systemData.refreshSPA();
 
 	let result = SPA.calculate(systemData.spa);
+	
+	// Update output text region
 	if (result == 0) {
 		let lines = SPA.print(spa);
 		let outContainer = document.getElementById('outputContainer');
@@ -846,7 +863,7 @@ systemData.refreshViews = function() {
 
 	const { latitude, longitude, azimuth, zenith } = spa;
 
-	// Update location marker in globe view
+	// Update global view
 	if (systemData.globalView.ready)
 	{
 		const params = {segments:16, diameter:0.05};
@@ -895,7 +912,7 @@ systemData.refreshViews = function() {
 		}
 	}
 
-	// Update sun position in local view
+	// Update local view view
 	if (systemData.localView.ready)
 	{
 		let { light, scene, objects: {sphere} } = systemData.localView;
@@ -1041,7 +1058,7 @@ systemData.refreshSPA = function() {
 	let canvas = document.getElementById('renderCanvas');
 
 	if (canvas !== null) {
-		populateGlobalView(canvas);
+		populateGlobalView(canvas as HTMLCanvasElement);
 
 		canvas.addEventListener('pointerenter',function(){
 			view.shouldRender |= RenderFlags.Loop;
@@ -1059,7 +1076,7 @@ systemData.refreshSPA = function() {
 	let canvas = document.getElementById('renderCanvas2');
 
 	if (canvas !== null) {
-		populateLocalView(canvas);
+		populateLocalView(canvas as HTMLCanvasElement);
 
 		canvas.addEventListener('pointerenter',function(){
 			view.shouldRender |= RenderFlags.Loop;
@@ -1240,6 +1257,63 @@ window.addEventListener('DOMContentLoaded', function() {
 		[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunset);
 		systemData.refreshUI();
 		systemData.refreshViews();
+	}
+
+	// time of day stuff
+	{
+		let spa = systemData.spa;
+		let [h, m, s] = [spa.hour, spa.minute, spa.second];
+
+		let subdiv = document.createElement('div');
+
+		let label = document.createElement('div');
+		label.innerHTML = `Hour minute second: `;
+
+		let hour = document.createElement('input');
+		hour.type = 'number';
+		Object.assign(hour, {min: 0, max: 23, step: 1, value: h});
+
+		let min = document.createElement('input');
+		min.type = 'number';
+		Object.assign(min, {min: 0, max: 59, step: 1, value: m});
+
+		let sec = document.createElement('input');
+		sec.type = 'number';
+		Object.assign(sec, {min: 0, max: 59, step: 1, value: s});
+
+		let slider = document.createElement('input');
+		slider.type = `range`;
+		Object.assign(slider, {min: 0, max: (24*60*60)-1, step: 1, value: hms_to_sec(h,m,s)});
+
+		hour.oninput = function() {
+			spa.hour = parseInt(hour.value);
+			slider.value = `${hms_to_sec(spa.hour, spa.minute, spa.second)}`;
+		}
+
+		min.oninput = function() {
+			spa.min = parseInt(min.value);
+			slider.value = `${hms_to_sec(spa.hour, spa.minute, spa.second)}`;
+		}
+
+		sec.oninput = function() {
+			spa.second = parseInt(sec.value);
+			slider.value = `${hms_to_sec(spa.hour, spa.minute, spa.second)}`;
+		}
+
+		slider.oninput = function() {
+			([spa.hour, spa.minute, spa.second] = sec_to_hms(parseInt(slider.value)));
+			hour.value = `${spa.hour}`;
+			min.value = `${spa.minute}`;
+			sec.value = `${spa.second}`;
+		};
+
+		subdiv.appendChild(label);
+		subdiv.appendChild(hour);
+		subdiv.appendChild(min);
+		subdiv.appendChild(sec);
+		subdiv.appendChild(slider);
+
+		div.appendChild(subdiv);
 	}
 
 	div.appendChild(location);
