@@ -293,6 +293,7 @@ type systemData = {
 	refreshUI:    () => void;
 	refreshSPA:   () => void;
 	refreshViews: () => void;
+	moveToWaypoint: (idx: number) => void;
 
 	spa: SPA.SPA,
 
@@ -325,6 +326,7 @@ let systemData: systemData = {
 	refreshUI:    function () { console.log('refreshUI() missing'); },
 	refreshSPA:   function () { console.log('refreshSPA() missing'); },
 	refreshViews: function () { console.log('refreshViews() missing'); },
+	moveToWaypoint: function (idx: number) { console.log('moveToWaypoint() missing'); },
 
 	// Solar calculation data structure
 	spa: SPA.alloc(),
@@ -736,6 +738,7 @@ function populateLocalView(canvas: HTMLCanvasElement) {
 		}
 
 		// Load local models
+		let countdown = systemData.local_models.length
 		for (let local_path of systemData.local_models) {
 
 			BABYLON.SceneLoader.ImportMesh(null, local_path, "out.obj", scene,
@@ -754,6 +757,11 @@ function populateLocalView(canvas: HTMLCanvasElement) {
 					}
 
 					systemData.localView.objects.scenery = m;
+
+					countdown--;
+					if (countdown <= 0 && systemData.local_waypoints.length>0) {
+						systemData.moveToWaypoint(0);
+					}
 
 					systemData.refreshViews();
 				},
@@ -943,6 +951,51 @@ systemData.refreshSPA = function() {
 	}
 };
 
+systemData.moveToWaypoint = function(idx: number) {
+	let waypoint = systemData.local_waypoints[idx];
+	let {lat,lon} = waypoint;
+	let lat_dec = hms_to_dec(lat[0],lat[1],lat[2]);
+	let lon_dec = hms_to_dec(lon[0],lon[1],lon[2]);
+	
+	systemData.spa.latitude  = lat_dec;
+	systemData.spa.longitude = lon_dec;
+
+	let x = (lon_dec-lon0) * lon_m_per_deg;
+	let z = (lat_dec-lat0) * lat_m_per_deg;
+	let y = 0;
+
+	// Ray cast down from elevated position to find collision
+	// with mesh below.
+	{
+		let origin = BV3([x,+1000,z]);
+		let direction = BV3([0,-1,0]);
+		let ray = new BABYLON.Ray(origin,direction,2000);
+		let scene = systemData.localView.scene;
+		
+		let hit = scene.pickWithRay(ray, (m: BABYLON.Mesh) => {
+			let val = systemData.local_marker ? systemData.local_marker.parent : null;
+			return (!val || m === val); 
+		});
+
+		if (hit.hit) {
+			x = hit.pickedPoint.x;
+			y = hit.pickedPoint.y + 1.5; // slightly above; average observer height?
+			z = hit.pickedPoint.z;
+		}
+	}
+
+	// Set camera target and local marker position to hit coords
+	let vec = BV3([x,y,z])
+	systemData.localView.camera.lockedTarget = vec;
+
+	if (systemData.local_marker) {
+		systemData.local_marker.position = vec;
+	}
+
+	systemData.refreshUI();
+	systemData.refreshViews();
+}
+
 
 /*
 	**********************************************
@@ -971,7 +1024,7 @@ systemData.refreshSPA = function() {
 	spa.minute        = d.getMinutes();
 	spa.second        = d.getSeconds();
 
-	spa.timezone      = -6.0;
+	spa.timezone      = -7.0;
 
 	spa.delta_ut1     = 0;
 	spa.delta_t       = 67;
@@ -982,11 +1035,12 @@ systemData.refreshSPA = function() {
 	spa.function      = SPA.CalculateWhat.All;
 
 	let result = SPA.calculate(systemData.spa);
-	if (result == 0) {
-	} else
-	{
+	if (result != 0) {
 		console.log('Problem in initial SPA calculation.');
 	}
+
+	systemData.refreshUI();
+	systemData.refreshViews();
 }
 
 // Set up globe view
@@ -1036,6 +1090,7 @@ window.addEventListener('resize', function () {
 });
 
 window.addEventListener('DOMContentLoaded', function() {
+
 	//
 	// Launch global view render loop
 	//
@@ -1119,54 +1174,12 @@ window.addEventListener('DOMContentLoaded', function() {
 		console.log(`  ${lon} => ${lon_dec} => ${lon_hms} => ${lon_m}`);
 
 		let option = document.createElement("option");
-		option.text = `${name} ${lat[0]}\"${lat[1]}'${lat[2]} ${lon[0]}\"${lon[1]}'${lon[2]}`;
+		option.text = `${name} ${lat[0]}°${lat[1]}'${lat[2]}\" ${lon[0]}°${lon[1]}'${lon[2]}\"`;
 		location.add(option);
 	}
 
 	location.onchange = function() {
-		let idx = location.selectedIndex;
-		let waypoint = systemData.local_waypoints[idx];
-		let {lat,lon} = waypoint;
-		let lat_dec = hms_to_dec(lat[0],lat[1],lat[2]);
-		let lon_dec = hms_to_dec(lon[0],lon[1],lon[2]);
-		
-		systemData.spa.latitude  = lat_dec;
-		systemData.spa.longitude = lon_dec;
-
-		let x = (lon_dec-lon0) * lon_m_per_deg;
-		let z = (lat_dec-lat0) * lat_m_per_deg;
-		let y = 0;
-
-		// Ray cast down from elevated position to find collision
-		// with mesh below.
-		{
-			let origin = BV3([x,+1000,z]);
-			let direction = BV3([0,-1,0]);
-			let ray = new BABYLON.Ray(origin,direction,2000);
-			let scene = systemData.localView.scene;
-			
-			let hit = scene.pickWithRay(ray, (m: BABYLON.Mesh) => {
-				let val = systemData.local_marker ? systemData.local_marker.parent : null;
-				return (!val || m === val); 
-			});
-
-			if (hit.hit) {
-				x = hit.pickedPoint.x;
-				y = hit.pickedPoint.y + 1.5; // slightly above; average observer height?
-				z = hit.pickedPoint.z;
-			}
-		}
-
-		// Set camera target and local marker position to hit coords
-		let vec = BV3([x,y,z])
-		systemData.localView.camera.lockedTarget = vec;
-
-		if (systemData.local_marker) {
-			systemData.local_marker.position = vec;
-		}
-
-		systemData.refreshUI();
-		systemData.refreshViews();
+		systemData.moveToWaypoint(location.selectedIndex);
 	}
 
 	div.appendChild(location);
