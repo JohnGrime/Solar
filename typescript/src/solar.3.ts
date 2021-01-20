@@ -259,10 +259,26 @@ type DynamicColors = {
 	skyblue1: BABYLON.Color3; // blue of sky at midday
 };
 
+class UIValue {
+	load_cb: () => void;
+	store_cb: () => void;
+
+	constructor(load_cb: () => void, store_cb: () => void) {
+		this.load_cb = load_cb;
+		this.store_cb = store_cb;
+	}
+
+	load() {
+		this.load_cb?.();
+	}
+
+	store() {
+		this.store_cb?.();
+	}
+}
+
 // Storage type for system data
 type systemData = {
-	uiControls:   UI.ControlGroup[];
-
 	refreshUI:    () => void;
 	refreshSPA:   () => void;
 	refreshViews: () => void;
@@ -280,6 +296,8 @@ type systemData = {
 
 	dynamic_colors: DynamicColors;
 	ambient_light?: BABYLON.HemisphericLight;
+
+	ui_values: UIValue[];
 };
 
 
@@ -291,81 +309,6 @@ type systemData = {
 
 
 let systemData: systemData = {
-
-	// Get/set methods added to each control in creatwUI()
-	// Note that the min/max params appear to control the size of the resultant
-	// edit controls, so although scientific notation works it's best to use
-	// the "full" numbers to ensure the controls are an appropriate size.
-	uiControls: [
-		{
-			caption: 'Latitude',
-			controls: [
-				{ key: 'latitude',  hasSlider: true, min: -90,  max: 90,  def: 0, step: 0.1000 }, // degrees
-			],
-		},
-
-		{
-			caption: 'Longitude',
-			controls: [
-				{ key: 'longitude', hasSlider: true, min: -180, max: 180, def: 0, step: 0.1000 }, // degrees
-			],
-		},
-
-		null,
-
-		/*
-		{
-			caption: 'Elevation (m), pressure (mbar), temperature (C)',
-			controls: [
-				{ key: 'elevation',   min: -6500000, max: 1000000, def: 0 }, // metres
-				{ key: 'pressure',    min: 0,        max: 5000,    def: 0 }, // millibar
-				{ key: 'temperature', min: -273,     max: 6000,    def: 0 }, // Celsius
-			],
-		},
-
-		null,
-
-		{
-			caption: 'Time adjustments: delta UT1 (s), delta T (s)',
-			controls: [
-				{ key: 'delta_ut1', min: -1,    max: 1,    def: 0, step: 0.1 }, // secs
-				{ key: 'delta_t',   min: -8000, max: 8000, def: 0            }, // secs
-			],
-		},
-
-		{
-			caption: 'Local slope (degs), azimuth rotation (degs), atmospheric refraction (degs)',
-			controls: [
-				{ key: 'slope',         min: -360,  max: 360,  def: 0 }, // degrees
-				{ key: 'azm_rotation',  min: -360,  max: 360,  def: 0 }, // degrees
-				{ key: 'atmos_refract', min: -5.00, max: 5.00, def: 0 }, // degrees
-			],
-		},
-
-		null,
-		*/
-
-		{
-			caption: 'Year, month, day',
-			controls: [
-				{ key: 'year',  min: -5000, max: 2500, def: 0 },
-				{ key: 'month', min: 1,     max: 12,   def: 1 },
-				{ key: 'day',   min: 1,     max: 31,   def: 1 },
-			],
-		},
-
-		{
-			caption: 'Hour, minute, second (local); timezone (UTC)',
-			controls: [
-				{ key: 'hour',      min: 0,   max: 23, def: 0 },
-				{ key: 'minute',    min: 0,   max: 59, def: 0 },
-				{ key: 'second',    min: 0,   max: 59, def: 0 },
-				{ key: 'timezone',  min: -18, max: 18, def: 0, step: 0.5 }, // hours offset from UTC
-			],
-		},
-
-		null,
-	],
 
 	// Routines to move SPA data in/out of GUI, and update views
 	refreshUI:    function () { console.log('refreshUI() missing'); },
@@ -466,6 +409,8 @@ let systemData: systemData = {
 	},
 
 	ambient_light: undefined,
+
+	ui_values: [],
 };
 
 
@@ -971,31 +916,19 @@ systemData.refreshViews = function() {
 	systemData.localView.shouldRender |= RenderFlags.Once;
 };
 
-systemData.refreshUI = function() {
-	let groups = systemData.uiControls;
-	let spa =  systemData.spa;
+//
+// Move data from the UI <=> SPA structure
+//
 
-	for (let group of groups) {
-		if (group === null) continue;
-		let controls = group.controls;
-		for (let control of controls) {
-			if (control == null || control.set == null) continue;
-			control.set( spa[control.key] );
-		}
+systemData.refreshUI = function() {
+	for (let ui of systemData.ui_values) {
+		ui.load();
 	}
 };
 
 systemData.refreshSPA = function() {
-	let groups = systemData.uiControls;
-	let spa =  systemData.spa;
-
-	for (let group of groups) {
-		if (group === null) continue;
-		let controls = group.controls;
-		for (let control of controls) {
-			if (control == null || control.get == null) continue;
-			spa[control.key] = control.get();
-		}
+	for (let ui of systemData.ui_values) {
+		ui.store();
 	}
 };
 
@@ -1043,13 +976,6 @@ systemData.refreshSPA = function() {
 	{
 		console.log('Problem in initial SPA calculation.');
 	}
-}
-
-// Set up UI elements
-{
-	let uiContainer = document.getElementById('uiContainer');
-	UI.create(uiContainer, systemData.uiControls, systemData.refreshViews);
-	systemData.refreshUI();
 }
 
 // Set up globe view
@@ -1259,6 +1185,86 @@ window.addEventListener('DOMContentLoaded', function() {
 		systemData.refreshViews();
 	}
 
+	// time of year stuff
+	{
+		let spa = systemData.spa;
+		let [y, m, d] = [spa.year, spa.month, spa.day];
+
+		let subdiv = document.createElement('div');
+
+		let label = document.createElement('div');
+		label.innerHTML = `Year, month, day (local); timezone (UTC): `;
+
+		let year = document.createElement('input');
+		year.type = 'number';
+		Object.assign(year, {min: -5000, max: 2500, step: 1, value: y});
+
+		let month = document.createElement('input');
+		month.type = 'number';
+		Object.assign(month, {min: 1, max: 12, step: 1, value: m});
+
+		let day = document.createElement('input');
+		day.type = 'number';
+		Object.assign(day, {min: 1, max: 31, step: 1, value: d});
+
+		let tz = document.createElement('input');
+		tz.type = 'number';
+		Object.assign(tz, {min: -12, max: 13, step: 1, value: -7}); // +13 seems to exist only for Tonga!
+
+		let year_ui = new UIValue(
+			() => {year.value = `${spa.year}`},
+			() => {spa.year = year.valueAsNumber} );
+
+		let month_ui = new UIValue(
+			() => {month.value = `${spa.month}`},
+			() => {spa.month = month.valueAsNumber} );
+
+		let day_ui = new UIValue(
+			() => {day.value = `${spa.day}`},
+			() => {spa.day = day.valueAsNumber} );
+
+		let tz_ui = new UIValue(
+			() => {tz.value = `${spa.timezone}`},
+			() => {spa.timezone = tz.valueAsNumber} );
+
+		year.oninput = function() {
+			systemData.refreshSPA();
+			systemData.refreshUI();
+			systemData.refreshViews();
+		}
+
+		month.oninput = function() {
+			systemData.refreshSPA();
+			systemData.refreshUI();
+			systemData.refreshViews();
+		}
+
+		day.oninput = function() {
+			systemData.refreshSPA();
+			systemData.refreshUI();
+			systemData.refreshViews();
+		}
+
+		tz.oninput = function() {
+			systemData.refreshSPA();
+			systemData.refreshUI();
+			systemData.refreshViews();
+		}
+
+		systemData.ui_values.push(year_ui);
+		systemData.ui_values.push(month_ui);
+		systemData.ui_values.push(day_ui);
+		systemData.ui_values.push(tz_ui);
+
+		subdiv.appendChild(label);
+		subdiv.appendChild(year);
+		subdiv.appendChild(month);
+		subdiv.appendChild(day);
+		subdiv.appendChild(tz);
+
+		div.appendChild(subdiv);
+	}
+
 	// time of day stuff
 	{
 		let spa = systemData.spa;
@@ -1285,27 +1291,50 @@ window.addEventListener('DOMContentLoaded', function() {
 		slider.type = `range`;
 		Object.assign(slider, {min: 0, max: (24*60*60)-1, step: 1, value: hms_to_sec(h,m,s)});
 
+		let hour_ui = new UIValue(
+			() => {hour.value = `${spa.hour}`},
+			() => {spa.hour = hour.valueAsNumber} );
+
+		let min_ui = new UIValue(
+			() => {min.value = `${spa.minute}`},
+			() => {spa.minute = min.valueAsNumber} );
+
+		let sec_ui = new UIValue(
+			() => {sec.value = `${spa.second}`},
+			() => {spa.second = sec.valueAsNumber} );
+
+		let slider_ui = new UIValue(
+			() => { slider.value = `${hms_to_sec(spa.hour, spa.minute, spa.second)}`; },
+			() => {} );
+
 		hour.oninput = function() {
-			spa.hour = parseInt(hour.value);
-			slider.value = `${hms_to_sec(spa.hour, spa.minute, spa.second)}`;
+			systemData.refreshSPA();
+			systemData.refreshUI();
+			systemData.refreshViews();
 		}
 
 		min.oninput = function() {
-			spa.min = parseInt(min.value);
-			slider.value = `${hms_to_sec(spa.hour, spa.minute, spa.second)}`;
+			systemData.refreshSPA();
+			systemData.refreshUI();
+			systemData.refreshViews();
 		}
 
 		sec.oninput = function() {
-			spa.second = parseInt(sec.value);
-			slider.value = `${hms_to_sec(spa.hour, spa.minute, spa.second)}`;
+			systemData.refreshSPA();
+			systemData.refreshUI();
+			systemData.refreshViews();
 		}
 
 		slider.oninput = function() {
 			([spa.hour, spa.minute, spa.second] = sec_to_hms(parseInt(slider.value)));
-			hour.value = `${spa.hour}`;
-			min.value = `${spa.minute}`;
-			sec.value = `${spa.second}`;
+			systemData.refreshUI();
+			systemData.refreshViews();
 		};
+
+		systemData.ui_values.push(hour_ui);
+		systemData.ui_values.push(min_ui);
+		systemData.ui_values.push(sec_ui);
+		systemData.ui_values.push(slider_ui);
 
 		subdiv.appendChild(label);
 		subdiv.appendChild(hour);
@@ -1322,34 +1351,6 @@ window.addEventListener('DOMContentLoaded', function() {
 	div.appendChild(sunset);
 
 	uiContainer?.appendChild(div);
-
-	// "Daytime" slider
-	{
-		let div = document.createElement("div");
-		
-		let control = document.createElement("input");
-
-		let spa = systemData.spa;
-		let val = (spa.hour*60*60) + (spa.minute*60) + spa.second;
-
-		control.type = `range`;
-		Object.assign(control, {min: 0, max: 24*60*60, step: 1, value: val});
-		control.oninput = function() {
-			let val = parseInt(control.value);
-			let hour = Math.floor( (val / (60*60)) );
-			let minute = Math.floor( (val % (60*60)) / 60 );
-			let second = Math.floor( (val % (60*60)) % 60 );
-			spa.hour = hour;
-			spa.minute = minute;
-			spa.second = second;
-			systemData.refreshUI();
-			systemData.refreshViews();
-		};
-
-		div.appendChild(control);
-
-		document.getElementById('uiContainer')?.appendChild(div);
-	}
 
 	{
 		let jd = 0;
