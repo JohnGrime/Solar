@@ -876,7 +876,7 @@ systemData.refreshViews = function() {
 		}
 	}
 
-	// Update local view view
+	// Update local view
 	if (systemData.localView.ready)
 	{
 		let { light, scene, objects: {sphere} } = systemData.localView;
@@ -1143,17 +1143,54 @@ window.addEventListener('DOMContentLoaded', function() {
 	{
 		let view = systemData.localView;
 
+		let label = document.createElement('div');
+		label.style.top = "5px";
+		label.style.right = "5px";
+		label.style.position = "absolute";
+		label.style.color = "black";
+		label.style.background = "white";
+
+		document.body.appendChild(label);
+
 		view.engine.runRenderLoop( function() {
 			if (view.shouldRender !== RenderFlags.Ignore) {
 				view.scene.render();
 				if ((view.shouldRender & RenderFlags.Once) != 0) {
 					view.shouldRender = view.shouldRender &= ~RenderFlags.Once;
 				}
+
+				let cam = view.camera as BABYLON.Camera;
+				let dir = cam.getForwardRay().direction;
+				let view_azi_degs: number = 0;
+				let view_ele_degs: number = 0;
+
+				// Azimuthal angle, in degs
+				{
+					const NORTH = BV3([0,0,1]);
+					let cross = BABYLON.Vector3.Cross(NORTH, dir);
+					let dot = BABYLON.Vector3.Dot(NORTH, dir);
+					let factor = (cross.y<0) ? -1 : 1;
+					view_azi_degs = Math.acos(dot) * 180/Math.PI * factor
+				}
+
+				// Azimuthal angle, in degs
+				{
+					let UP = BV3([0, -1, 0]);
+					let dot = BABYLON.Vector3.Dot(UP, dir);
+					view_ele_degs = (Math.acos(dot) - Math.PI/2) * 180/Math.PI
+				}
+
+				let txt = `Azimuth ${view_azi_degs.toFixed(0)}° elevation ${view_ele_degs.toFixed(0)}°`;
+				label.innerHTML = txt;
 			}
 		});
 	}
 });
 
+
+//
+// Set up user interface
+//
 
 {
 	let uiContainer = document.getElementById('uiContainer');
@@ -1437,15 +1474,4 @@ window.addEventListener('DOMContentLoaded', function() {
 	}
 
 	uiContainer?.appendChild(div);
-
-	{
-		for (let when of [2021, 1412, 1954, 1582, 1312]) {
-			console.log("");
-			for (let what of [Season.MarchEquinox, Season.JuneSolstice, Season.SeptemberEquinox, Season.DecemberSolstice]) {
-				let [year,month,day, hour,minute,second] = GetSeasonUTC(what, when);
-				console.log(Season[what], `${year}/${month}/${day} ${hour}:${minute}:${second}`);
-			}
-		}
-	}
-
 }
