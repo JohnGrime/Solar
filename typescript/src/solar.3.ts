@@ -93,14 +93,15 @@ function kelvin_to_rgb(K: number): [number,number,number] {
 }
 
 //
-// https://phabricator.kde.org/R175:55e1d14fe900a5ac1acd3a76dfa51f8ccfa67b21
+// Solstace / equinox calculations.
+// Based on: https://phabricator.kde.org/R175:55e1d14fe900a5ac1acd3a76dfa51f8ccfa67b21
 //
 
 enum Season {
-	JuneSolstice,
-	DecemberSolstice,
 	MarchEquinox,
-	SeptemberEquinox
+	JuneSolstice,
+	SeptemberEquinox,
+	DecemberSolstice,
 }
 
 function meanJDE(season: Season, year: number): number {
@@ -186,38 +187,48 @@ function seasonJD(season: Season, year: number): number {
 	return jde0 + (0.00001 * S) / dLambda;
 }
 
-// https://quasar.as.utexas.edu/BillInfo/JulianDatesG.html
-function dmy_from_JD(jd: number): number[] {
-	const Q = Math.floor(jd + 0.5);
-	const Z = Math.floor(Q);
-	const W = Math.floor((Z-1867216.25) / 36524.25);
-	const X = Math.floor(W/4);
-	const A = Math.floor(Z+1+W - X);
-	const B = Math.floor(A+1524);
-	const C = Math.floor((B-122.1) / 365.25);
-	const D = Math.floor(365.25 * C);
-	const E = Math.floor((B-D) / 30.6001);
-	const F = Math.floor(30.6001 * E);
-	const Day = B-D-F+(Q-Z)
-	const Month = (E-1 > 12) ? E-13 : E-1; // must get number less than or equal to 12; E-1 or E-13
-	const Year = (Month <= 2) ? (C-4715) : (C-4716); // C-4715 (if Month is January or February) or C-4716 (otherwise)}
-	return [Day, Month, Year];
+//
+// Julian date => UTC; Meeus Astronmical Algorithms Chapter 7
+// Based on https://stellafane.org/misc/equinox.html
+//
+
+function ymd_hms_from_JD(J: number): number[] {
+	const int = (x: number) => Math.floor(x);
+
+	let A, alpha;
+	let Z = int( J + 0.5 ); // Integer JDs
+	let F = (J + 0.5) - Z;  // Fractional JDs
+	if (Z < 2299161) {
+		A = Z;
+	}
+	else {
+		alpha = int( (Z-1867216.25) / 36524.25 );
+		A = Z + 1 + alpha - int( alpha / 4 );
+	}
+	let B = A + 1524;
+	let C = int( (B-122.1) / 365.25 );
+	let D = int( 365.25*C );
+	let E = int( ( B-D )/30.6001 );
+	let DT = B - D - int(30.6001*E) + F; // Day of Month with decimals for time
+	
+	let Month = E - (E<13.5 ? 1 : 13); // Month Number
+	let Year  = C - (Month>2.5 ? 4716 : 4715); // Year    
+	let Day = int( DT );
+	
+	let H = 24*(DT - Day); // Hours and fractional hours 
+	let Hour = int(H);
+	
+	let M = 60*(H - Hour); // Minutes and fractional minutes
+	let Minute = int(M);
+	
+	let Second = int( 60*(M-Minute) );
+
+	return [Year,Month,Day, Hour,Minute,Second];
 }
 
-function dmy_from_JD2(J: number): number[] {
-	const int = (x: number) => Math.floor(x);
-	const div = (x: number, y: number) => int(x/y);
-	const mod = (x: number, y: number) => x%y;
-
-	const f = J + 1401 + div( div((4*J+274277),146097)*3, 4) + -38;
-	const e = 4*f + 3;
-	const g = div(mod(e,1461), 4);
-	const h = 5*g + 2;
-	const day = div(mod(h,153), 5) + 1;
-	const month = mod(div(h,153)+2,12) + 1;
-	const year = div(e,1461) - 4716 + div(12+2-month, 12);
-
-	return [day, month, year];
+function GetSeasonUTC(season: Season, year: number): number[] {
+	let julian_day = seasonJD(season, year);
+	return ymd_hms_from_JD(julian_day);
 }
 
 
@@ -1158,31 +1169,13 @@ window.addEventListener('DOMContentLoaded', function() {
 		systemData.refreshViews();
 	}
 
-	let sunrise = document.createElement("button");
-	sunrise.innerHTML = "Sunrise";
-	sunrise.onclick = function () {
-		let spa = systemData.spa;
-		[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunrise);
-		systemData.refreshUI();
-		systemData.refreshViews();
-	}
+	div.appendChild(location);
 
-	let transit = document.createElement("button");
-	transit.innerHTML = "Transit";
-	transit.onclick = function () {
-		let spa = systemData.spa;
-		[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.suntransit);
-		systemData.refreshUI();
-		systemData.refreshViews();
-	}
-
-	let sunset = document.createElement("button");
-	sunset.innerHTML = "Sunset";
-	sunset.onclick = function () {
-		let spa = systemData.spa;
-		[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunset);
-		systemData.refreshUI();
-		systemData.refreshViews();
+	{
+		let subdiv = document.createElement('div');
+		subdiv.appendChild(document.createElement('br'));
+		subdiv.appendChild(document.createElement('br'));
+		div.appendChild(subdiv);
 	}
 
 	// time of year stuff
@@ -1262,6 +1255,53 @@ window.addEventListener('DOMContentLoaded', function() {
 		subdiv.appendChild(day);
 		subdiv.appendChild(tz);
 
+		div.appendChild(subdiv);
+	}
+
+	// year-based checkpoints
+	{
+		let subdiv = document.createElement('div');
+
+		// Be careful; Java/Typescript months are zero-based!
+		for (let what of [Season.MarchEquinox, Season.JuneSolstice, Season.SeptemberEquinox, Season.DecemberSolstice]) {
+
+			let btn = document.createElement("button");
+			btn.innerHTML = `${Season[what]}`;
+			btn.onclick = function () {
+				let spa = systemData.spa;
+				let [year,month,day, hour,minute,second] = GetSeasonUTC(what, spa.year);
+				
+				// adjust date for timezone; try to do everything in UTC
+				let date = new Date( Date.UTC(year,month-1,day, hour,minute,second) );
+				console.log(Season[what], date.toUTCString(), "(UTC)");
+				date.setTime( date.getTime() + spa.timezone * 60*60 * 1000 );
+				console.log(Season[what], date.toUTCString(), `(LOCAL: UTC + ${spa.timezone})`);
+
+				// set SPA values; note that we use values from adjusted UTC
+				year = date.getUTCFullYear();
+				month = date.getUTCMonth()+1;
+				day = date.getUTCDate();
+
+				hour = date.getUTCHours();
+				minute = date.getUTCMinutes();
+				second = date.getUTCSeconds();
+
+				([spa.year,spa.month,spa.day, spa.hour,spa.minute,spa.second] = [year,month,day, hour,minute,second]);
+
+				systemData.refreshUI();
+				systemData.refreshViews();
+			}
+
+			subdiv.appendChild(btn);
+		}
+
+		div.appendChild(subdiv);
+	}
+
+	{
+		let subdiv = document.createElement('div');
+		subdiv.appendChild(document.createElement('br'));
+		subdiv.appendChild(document.createElement('br'));
 		div.appendChild(subdiv);
 	}
 
@@ -1345,39 +1385,53 @@ window.addEventListener('DOMContentLoaded', function() {
 		div.appendChild(subdiv);
 	}
 
-	div.appendChild(location);
-	div.appendChild(sunrise);
-	div.appendChild(transit);
-	div.appendChild(sunset);
+	// day-based checkpoints
+	{
+		let subdiv = document.createElement('div');
+
+		let sunrise = document.createElement("button");
+		sunrise.innerHTML = "Sunrise";
+		sunrise.onclick = function () {
+			let spa = systemData.spa;
+			[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunrise);
+			systemData.refreshUI();
+			systemData.refreshViews();
+		}
+
+		let transit = document.createElement("button");
+		transit.innerHTML = "Transit";
+		transit.onclick = function () {
+			let spa = systemData.spa;
+			[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.suntransit);
+			systemData.refreshUI();
+			systemData.refreshViews();
+		}
+
+		let sunset = document.createElement("button");
+		sunset.innerHTML = "Sunset";
+		sunset.onclick = function () {
+			let spa = systemData.spa;
+			[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunset);
+			systemData.refreshUI();
+			systemData.refreshViews();
+		}
+
+		subdiv.appendChild(sunrise);
+		subdiv.appendChild(transit);
+		subdiv.appendChild(sunset);
+
+		div.appendChild(subdiv);
+	}
 
 	uiContainer?.appendChild(div);
 
 	{
-		let jd = 0;
-		let [d,m,y] = [0,0,0];
-
-		for (let what of [Season.MarchEquinox, Season.SeptemberEquinox, Season.JuneSolstice, Season.DecemberSolstice]) {
-			jd = seasonJD(what, 2021);
-			[d,m,y] = dmy_from_JD(jd);
-			console.log(Season[what], jd, d, m, y);
-			[d,m,y] = dmy_from_JD2(jd);
-			console.log(Season[what], jd, d, m, y);
-		}
-
-		for (let what of [Season.MarchEquinox, Season.SeptemberEquinox, Season.JuneSolstice, Season.DecemberSolstice]) {
-			jd = seasonJD(what, 1412);
-			[d,m,y] = dmy_from_JD(jd);
-			console.log(Season[what], jd, d, m, y);
-			[d,m,y] = dmy_from_JD2(jd);
-			console.log(Season[what], jd, d, m, y);
-		}
-
-		for (let what of [Season.MarchEquinox, Season.SeptemberEquinox, Season.JuneSolstice, Season.DecemberSolstice]) {
-			jd = seasonJD(what, 1954);
-			[d,m,y] = dmy_from_JD(jd);
-			console.log(Season[what], jd, d, m, y);
-			[d,m,y] = dmy_from_JD2(jd);
-			console.log(Season[what], jd, d, m, y);
+		for (let when of [2021, 1412, 1954, 1582, 1312]) {
+			console.log("");
+			for (let what of [Season.MarchEquinox, Season.JuneSolstice, Season.SeptemberEquinox, Season.DecemberSolstice]) {
+				let [year,month,day, hour,minute,second] = GetSeasonUTC(what, when);
+				console.log(Season[what], `${year}/${month}/${day} ${hour}:${minute}:${second}`);
+			}
 		}
 	}
 
