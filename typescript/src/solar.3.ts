@@ -26,10 +26,13 @@ function lonlat_degs_to_m(lon: number, lat: number): [number,number] {
 	return [ (lon-lon0)*lon_m_per_deg, (lat-lat0)*lat_m_per_deg ];
 }
 
+// CAREFUL: javascript date months are ZERO BASED!
 function seasonToYMDHMS(what: SEASON.Season, which_year: number, timezone: number = 0) {
 	const s = SEASON.Season;
 	let [year,month,day, hour,minute,second] = SEASON.GetSeasonUTC(what, which_year);
 	
+	console.log("");
+
 	// adjust date for timezone; try to do everything in UTC
 	let date = new Date( Date.UTC(year,month-1,day, hour,minute,second) );
 	console.log(SEASON.Season[what], date.toUTCString(), "(UTC)");
@@ -683,7 +686,7 @@ systemData.refreshViews = function() {
 			if (!isNaN(Number(what))) continue; // skip if number
 			let season = SEASON.Season[what as keyof typeof SEASON.Season];
 			let [yr,mt,dy, hr,mi,sc] = seasonToYMDHMS(season, spa.year, spa.timezone);
-			let str = `${SEASON.toString(season)}: ${timeStr([mt,dy],'/')} ${timeStr([hr,mi,sc])} Local`;
+			let str = `${SEASON.toString(season)}: ${timeStr([yr,mt,dy],'/')} ${timeStr([hr,mi,sc])} Local`;
 			lines.push(str);
 		}
 
