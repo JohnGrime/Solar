@@ -1033,27 +1033,28 @@ window.addEventListener('DOMContentLoaded', function() {
 				if (systemData.localInfo.models_outstanding>0) return;
 
 				let cam = view.camera as BABYLON.Camera;
-				let dir = cam.getForwardRay().direction;
+				let dir = cam.getForwardRay().direction.normalize();
 				let view_azi_degs: number = 0;
 				let view_ele_degs: number = 0;
 
 				// Azimuthal angle, in degs
 				{
 					const NORTH = BV3([0,0,1]);
-					let cross = BABYLON.Vector3.Cross(NORTH, dir);
+					let cross = BABYLON.Vector3.Cross(NORTH, dir).normalize();
 					let dot = BABYLON.Vector3.Dot(NORTH, dir);
-					let factor = (cross.y<0) ? -1 : 1;
-					view_azi_degs = Math.acos(dot) * 180/Math.PI * factor
+					view_azi_degs = Math.acos(dot) * 180/Math.PI;
+					if (cross.y<0) view_azi_degs = 360.0 - view_azi_degs;
 				}
 
-				// Azimuthal angle, in degs
+				// Elevation angle, in degs
 				{
 					let UP = BV3([0, -1, 0]);
 					let dot = BABYLON.Vector3.Dot(UP, dir);
 					view_ele_degs = (Math.acos(dot) - Math.PI/2) * 180/Math.PI
+//					view_ele_degs = 90 - view_ele_degs; // convert into zenith angle
 				}
 
-				let txt = `Azimuth ${view_azi_degs.toFixed(0)}°, elevation ${view_ele_degs.toFixed(0)}°`;
+				let txt = `Azimuth ${view_azi_degs.toFixed(0)}°, zenith ${(90-view_ele_degs).toFixed(0)}°`;
 				systemData.updateLocalViewOrientationLabel(txt);
 			}
 		});
