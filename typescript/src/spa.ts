@@ -1489,12 +1489,15 @@ function spa_print(spa: SPA) : string[] {
 	}
 
 	return [
+	/*
 		'Inputs:',
 		'',
+	*/
 		`  ${timeStr(spa.year,spa.month,spa.day,'/')} ${timeStr(spa.hour,spa.minute,spa.second)} GMT ${spa.timezone}`,
 		'',
 		`  Latitude:      ${(spa.latitude).toFixed(2)}`,
 		`  Longitude:     ${(spa.longitude).toFixed(2)}`,
+	/*
 		`  Elevation:     ${(spa.elevation).toFixed(2)}`,
 		`  Pressure:      ${(spa.pressure).toFixed(2)}`,
 		`  Temperature:   ${(spa.temperature).toFixed(2)}`,
@@ -1506,6 +1509,7 @@ function spa_print(spa: SPA) : string[] {
 		`  Atmos refract: ${(spa.atmos_refract).toFixed(2)}`,
 		'',
 		'Outputs:',
+		*/
 		'',
 		`  Zenith:        ${(spa.zenith).toFixed(2)} degrees`,
 		`  Azimuth:       ${(spa.azimuth).toFixed(2)} degrees`,

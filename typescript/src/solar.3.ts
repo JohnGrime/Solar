@@ -1046,7 +1046,7 @@ systemData.moveToWaypoint = function(idx: number) {
 // Set up globe view
 {
 	let view = systemData.globalView;
-	let canvas = document.getElementById('renderCanvas');
+	let canvas = document.getElementById('globalRenderCanvas');
 
 	if (canvas !== null) {
 		populateGlobalView(canvas as HTMLCanvasElement);
@@ -1064,7 +1064,7 @@ systemData.moveToWaypoint = function(idx: number) {
 // Set up local view
 {
 	let view = systemData.localView;
-	let canvas = document.getElementById('renderCanvas2');
+	let canvas = document.getElementById('localRenderCanvas');
 
 	if (canvas !== null) {
 		populateLocalView(canvas as HTMLCanvasElement);
@@ -1180,7 +1180,7 @@ window.addEventListener('DOMContentLoaded', function() {
 					view_ele_degs = (Math.acos(dot) - Math.PI/2) * 180/Math.PI
 				}
 
-				let txt = `Azimuth ${view_azi_degs.toFixed(0)}° elevation ${view_ele_degs.toFixed(0)}°`;
+				let txt = `Azimuth ${view_azi_degs.toFixed(0)}°, elevation ${view_ele_degs.toFixed(0)}°`;
 				label.innerHTML = txt;
 			}
 		});
@@ -1197,29 +1197,39 @@ window.addEventListener('DOMContentLoaded', function() {
 
 	let div = document.createElement("div");
 
-	let location = document.createElement("select");
+	{
+		let subdiv = document.createElement('div');
 
-	for (let w of systemData.local_waypoints) {
-		let {name,lat,lon} = w;
+		let label = document.createElement('div');
+		label.innerHTML = `Location:`;
 
-		let [lat_dec,lon_dec] = [hms_to_dec(lat[0],lat[1],lat[2]),hms_to_dec(lon[0],lon[1],lon[2])];
-		let [lat_hms,lon_hms] = [dec_to_hms(lat_dec),dec_to_hms(lon_dec)];
-		let [lon_m,lat_m] = lonlat_degs_to_m(lon_dec, lat_dec);
+		let location = document.createElement("select");
 
-		console.log(`${name} ${lat} ${lon}`);
-		console.log(`  ${lat} => ${lat_dec} => ${lat_hms} => ${lat_m}`);
-		console.log(`  ${lon} => ${lon_dec} => ${lon_hms} => ${lon_m}`);
+		for (let w of systemData.local_waypoints) {
+			let {name,lat,lon} = w;
 
-		let option = document.createElement("option");
-		option.text = `${name} ${lat[0]}°${lat[1]}'${lat[2]}\" ${lon[0]}°${lon[1]}'${lon[2]}\"`;
-		location.add(option);
+			let [lat_dec,lon_dec] = [hms_to_dec(lat[0],lat[1],lat[2]),hms_to_dec(lon[0],lon[1],lon[2])];
+			let [lat_hms,lon_hms] = [dec_to_hms(lat_dec),dec_to_hms(lon_dec)];
+			let [lon_m,lat_m] = lonlat_degs_to_m(lon_dec, lat_dec);
+
+			console.log(`${name} ${lat} ${lon}`);
+			console.log(`  ${lat} => ${lat_dec} => ${lat_hms} => ${lat_m}`);
+			console.log(`  ${lon} => ${lon_dec} => ${lon_hms} => ${lon_m}`);
+
+			let option = document.createElement("option");
+			option.text = `${name} ${lat[0]}°${lat[1]}'${lat[2]}\" ${lon[0]}°${lon[1]}'${lon[2]}\"`;
+			location.add(option);
+		}
+
+		location.onchange = function() {
+			systemData.moveToWaypoint(location.selectedIndex);
+		}
+
+		subdiv.appendChild(label);
+		subdiv.appendChild(location);
+
+		div.appendChild(subdiv);
 	}
-
-	location.onchange = function() {
-		systemData.moveToWaypoint(location.selectedIndex);
-	}
-
-	div.appendChild(location);
 
 	{
 		let subdiv = document.createElement('div');
@@ -1236,7 +1246,7 @@ window.addEventListener('DOMContentLoaded', function() {
 		let subdiv = document.createElement('div');
 
 		let label = document.createElement('div');
-		label.innerHTML = `Year, month, day (local); timezone (UTC): `;
+		label.innerHTML = "Year, month, day (local); timezone (UTC):";
 
 		let year = document.createElement('input');
 		year.type = 'number';
@@ -1363,7 +1373,7 @@ window.addEventListener('DOMContentLoaded', function() {
 		let subdiv = document.createElement('div');
 
 		let label = document.createElement('div');
-		label.innerHTML = `Hour minute second: `;
+		label.innerHTML = "Hour minute second:";
 
 		let hour = document.createElement('input');
 		hour.type = 'number';
