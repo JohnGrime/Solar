@@ -1,6 +1,8 @@
 import * as SPA  from './spa.js';
 import * as GEOM from './geom.js';
 import * as UI   from './ui.js';
+import * as SEASON from './season.js';
+import * as MISC from './misc.js';
 
 // Handled in tsconfig.json, e.g.: "types": ["babylonjs"]
 //import * as BABYLON from 'babylonjs';
@@ -23,214 +25,6 @@ const lat_m_per_deg = 111194.92664455873;
 function lonlat_degs_to_m(lon: number, lat: number): [number,number] {
 	return [ (lon-lon0)*lon_m_per_deg, (lat-lat0)*lat_m_per_deg ];
 }
-
-// hour, minute, second <=> decimal hour
-
-function hms_to_dec(h: number, m: number, s: number): number {
-	let c = (h<0) ? -1 : 1;
-	return h + (m*c)/60 + (s*c)/(60*60);
-}
-
-function dec_to_hms(dec: number): [number,number,number] {
-	let c = (dec<0) ? -1 : 1;
-
-	dec *= c;
-
-	let h = Math.floor(dec);
-	let x = (dec-h) * (60*60);
-	let m = Math.floor(x/60);
-	let s = Math.round(x%60);
-
-	h *= c;
-
-	return [h,m,s];
-}
-
-// hour, minute, second <=> seconds
-
-function hms_to_sec(h: number, m: number, s: number): number {
-	const [HOUR, MIN] = [60*60, 60]
-	return h*HOUR + m*MIN + s
-}
-
-function sec_to_hms(s: number): [number, number, number] {
-	const [HOUR, MIN] = [60*60, 60]
-	let _h = Math.floor( (s/HOUR) )
-	let _m = Math.floor( (s%HOUR) / MIN )
-	let _s = Math.floor( (s%HOUR) % MIN )
-	return [_h, _m, _s]
-}
-
-// https://gist.github.com/paulkaplan/5184275
-function kelvin_to_rgb(K: number): [number,number,number] {
-	let temp = K / 100;
-	let r,g,b;
-
-	if (temp <= 66) {
-		r = 255;
-		g = temp;
-		g = 99.4708025861 * Math.log(g) - 161.1195681661;
-
-		if (temp <= 19) {
-			b = 0;
-		} else {
-			b = temp - 10;
-			b = 138.5177312231 * Math.log(b) - 305.0447927307;
-		}
-	} else {
-		r = temp - 60;
-		r = 329.698727446 * Math.pow(r, -0.1332047592);
-
-		g = temp - 60;
-		g = 288.1221695283 * Math.pow(g, -0.0755148492 );
-
-		b = 255;
-	}
-
-	let clamp = (x: number, x0: number, x1: number) => Math.min(Math.max(x,x0), x1);
-
-	return [clamp(r,0,255), clamp(g,0,255), clamp(b,0,255)]
-}
-
-//
-// Solstace / equinox calculations.
-// Based on: https://phabricator.kde.org/R175:55e1d14fe900a5ac1acd3a76dfa51f8ccfa67b21
-//
-
-enum Season {
-	MarchEquinox,
-	JuneSolstice,
-	SeptemberEquinox,
-	DecemberSolstice,
-}
-
-function meanJDE(season: Season, year: number): number {
-	if (year <= 1000) {
-		// Astronomical Algorithms, Jean Meeus, chapter 26, table 26.A
-		// mean season Julian dates for years -1000 to 1000
-		const y = year / 1000.0;
-		switch (season) {
-			case Season.MarchEquinox:
-			return 1721139.29189 + (365242.13740 * y) + (0.06134 * Math.pow(y, 2)) + (0.00111 * Math.pow(y, 3)) - (0.00071 * Math.pow(y, 4));
-
-			case Season.JuneSolstice:
-			return 1721233.25401 + (365241.72562 * y) - (0.05323 * Math.pow(y, 2)) + (0.00907 * Math.pow(y, 3)) + (0.00025 * Math.pow(y, 4));
-
-			case Season.SeptemberEquinox:
-			return 1721325.70455 + (365242.49558 * y) - (0.11677 * Math.pow(y, 2)) - (0.00297 * Math.pow(y, 3)) + (0.00074 * Math.pow(y, 4));
-
-			case Season.DecemberSolstice:
-			return 1721414.39987 + (365242.88257 * y) - (0.00769 * Math.pow(y, 2)) - (0.00933 * Math.pow(y, 3)) - (0.00006 * Math.pow(y, 4));
-
-			default:
-			return 0;
-		}
-	} else {
-		// Astronomical Algorithms, Jean Meeus, chapter 26, table 26.B
-		// mean season Julian dates for years 1000 to 3000
-		const y = (year - 2000) / 1000.0;
-		switch (season) {
-			case Season.MarchEquinox:
-			return 2451623.80984 + (365242.37404 * y) + (0.05169 * Math.pow(y, 2)) - (0.00411 * Math.pow(y, 3)) - (0.00057 * Math.pow(y, 4));
-
-			case Season.JuneSolstice:
-			return 2451716.56767 + (365241.62603 * y) + (0.00325 * Math.pow(y, 2)) + (0.00888 * Math.pow(y, 3)) - (0.00030 * Math.pow(y, 4));
-
-			case Season.SeptemberEquinox:
-			return 2451810.21715 + (365242.01767 * y) - (0.11575 * Math.pow(y, 2)) + (0.00337 * Math.pow(y, 3)) + (0.00078 * Math.pow(y, 4));
-
-			case Season.DecemberSolstice:
-			return 2451900.05952 + (365242.74049 * y) - (0.06223 * Math.pow(y, 2)) - (0.00823 * Math.pow(y, 3)) + (0.00032 * Math.pow(y, 4));
-
-			default:
-			return 0;
-		}
-	}
-
-	return 0;
-}
-
-function periodicTerms(t: number): number {
-	const rad = (x: number) => x*(Math.PI/180.0);
-
-	// Astronomical Algorithms, Jean Meeus, chapter 26, table 26.C
-	// The table gives the periodic terms in degrees, but the values are converted to radians
-	// at compile time so that they can be passed to std::cos()
-
-	const periodic: number[][] = [
-		[485, rad(324.96), rad( 1934.136)], [203, rad(337.23), rad(32964.467)], [199, rad(342.08), rad(   20.186)], [182, rad( 27.85), rad(445267.112)],
-		[156, rad( 73.14), rad(45036.886)], [136, rad(171.52), rad(22518.443)], [ 77, rad(222.54), rad(65928.934)], [ 74, rad(296.72), rad(  3034.906)],
-		[ 70, rad(243.58), rad( 9037.513)], [ 58, rad(119.81), rad(33718.147)], [ 52, rad(297.17), rad(  150.678)], [ 50, rad( 21.02), rad(  2281.226)],
-		[ 45, rad(247.54), rad(29929.562)], [ 44, rad(325.15), rad(31555.956)], [ 29, rad( 60.93), rad( 4443.417)], [ 18, rad(155.12), rad( 67555.328)],
-		[ 17, rad(288.79), rad( 4562.452)], [ 16, rad(198.04), rad(62894.029)], [ 14, rad(199.76), rad(31436.921)], [ 12, rad( 95.39), rad( 14577.848)],
-		[ 12, rad(287.11), rad(31931.756)], [ 12, rad(320.81), rad(34777.259)], [  9, rad(227.73), rad( 1222.114)], [  8, rad( 15.45), rad( 16859.074)]		
-	];
-
-	let val: number = 0;
-
-	for (let [a,b_rad,c_rad] of periodic) {
-		val += a * Math.cos(b_rad + c_rad * t);
-	}
-
-	return val;
-}
-
-// Returns julian date of given season in given year
-function seasonJD(season: Season, year: number): number {
-	// Astronomical Algorithms, Jean Meeus, chapter 26
-	const jde0 = meanJDE(season, year);
-	const T = (jde0 - 2451545.0) / 36525;
-	const W_deg = 35999.373 * T + 2.47;
-	const W_rad = W_deg * (Math.PI / 180.0);
-	const dLambda = 1 + (0.0334 * Math.cos(W_rad)) + (0.0007 * Math.cos(2 * W_rad));
-	const S = periodicTerms(T);
-	return jde0 + (0.00001 * S) / dLambda;
-}
-
-//
-// Julian date => UTC; Meeus Astronmical Algorithms Chapter 7
-// Based on https://stellafane.org/misc/equinox.html
-//
-
-function ymd_hms_from_JD(J: number): number[] {
-	const int = (x: number) => Math.floor(x);
-
-	let A, alpha;
-	let Z = int( J + 0.5 ); // Integer JDs
-	let F = (J + 0.5) - Z;  // Fractional JDs
-	if (Z < 2299161) {
-		A = Z;
-	}
-	else {
-		alpha = int( (Z-1867216.25) / 36524.25 );
-		A = Z + 1 + alpha - int( alpha / 4 );
-	}
-	let B = A + 1524;
-	let C = int( (B-122.1) / 365.25 );
-	let D = int( 365.25*C );
-	let E = int( ( B-D )/30.6001 );
-	let DT = B - D - int(30.6001*E) + F; // Day of Month with decimals for time
-	
-	let Month = E - (E<13.5 ? 1 : 13); // Month Number
-	let Year  = C - (Month>2.5 ? 4716 : 4715); // Year    
-	let Day = int( DT );
-	
-	let H = 24*(DT - Day); // Hours and fractional hours 
-	let Hour = int(H);
-	
-	let M = 60*(H - Hour); // Minutes and fractional minutes
-	let Minute = int(M);
-	
-	let Second = int( 60*(M-Minute) );
-
-	return [Year,Month,Day, Hour,Minute,Second];
-}
-
-function GetSeasonUTC(season: Season, year: number): number[] {
-	let julian_day = seasonJD(season, year);
-	return ymd_hms_from_JD(julian_day);
-}
-
 
 // Bit flags
 const RenderFlags = {
@@ -270,6 +64,15 @@ type DynamicColors = {
 	skyblue1: BABYLON.Color3; // blue of sky at midday
 };
 
+type LocalInfo = {
+	sun_distance: number;
+	sun_radius: number;
+	model_paths: string[];
+	models_outstanding: number;
+	marker?: BABYLON.Mesh;
+	waypoints: Waypoint[];
+};
+
 class UIValue {
 	load_cb: () => void;
 	store_cb: () => void;
@@ -293,6 +96,8 @@ type systemData = {
 	refreshUI:    () => void;
 	refreshSPA:   () => void;
 	refreshViews: () => void;
+
+	updateLocalViewOrientationLabel: (txt: string) => void;
 	moveToWaypoint: (idx: number) => void;
 
 	spa: SPA.SPA,
@@ -300,11 +105,7 @@ type systemData = {
 	globalView: View;
 	localView: View;
 
-	local_sun_distance: number;
-	local_sun_radius: number;
-	local_models: string[];
-	local_marker?: BABYLON.Mesh;
-	local_waypoints: Waypoint[];
+	localInfo: LocalInfo;
 
 	dynamic_colors: DynamicColors;
 	ambient_light?: BABYLON.HemisphericLight;
@@ -326,7 +127,13 @@ let systemData: systemData = {
 	refreshUI:    function () { console.log('refreshUI() missing'); },
 	refreshSPA:   function () { console.log('refreshSPA() missing'); },
 	refreshViews: function () { console.log('refreshViews() missing'); },
+
 	moveToWaypoint: function (idx: number) { console.log('moveToWaypoint() missing'); },
+	updateLocalViewOrientationLabel: function (txt: string) {
+		let label = document.getElementById('localViewOrientationLabel');
+		if (!label) return;
+		label.innerHTML = txt;
+	},
 
 	// Solar calculation data structure
 	spa: SPA.alloc(),
@@ -358,57 +165,60 @@ let systemData: systemData = {
 		light : null,
 
 		objects: {
-			sphere: null, // light position indicator
-			scenery: null,
+			sphere: null,  // light position indicator
+			scenery: null, // environmental models
 		}
 	},
 
-	local_sun_distance: 25000.0,
-	local_sun_radius: 500.0,
+	localInfo: {
+		sun_distance: 25000.0,
+		sun_radius: 500.0,
 
-	local_models: [
-		"./models/model_20/",
-		"./models/model_19/",
-		"./models/model_18/",
-		"./models/model_17/",
-		"./models/model_16/",
-		"./models/model_15/",
-	],
+		model_paths: [
+			"./models/model_20/",
+			"./models/model_19/",
+			"./models/model_18/",
+			"./models/model_17/",
+			"./models/model_16/",
+			"./models/model_15/",
+		],
+		models_outstanding: 6,
 
-	local_marker: undefined,
+		marker: undefined,
 
-	local_waypoints: [
-		{
-			name: "Pueblo Bonito",
-			lat: [ 36 ,  3, 39],
-			lon: [-107, 57, 44],
-		},
-		{
-			name: "Pueblo Bonito",
-			lat: [ 36 ,  3, 39],
-			lon: [-107, 57, 42],
-		},
-		{
-			name: "Hillside Ruin",
-			lat: [ 36 , 3 , 38],
-			lon: [-107, 57, 35],
-		},
-		{
-			name: "Chetro Ketl",
-			lat: [ 36 , 3 , 37],
-			lon: [-107, 57, 15],
-		},
-		{
-			name: "McElmo Unit",
-			lat: [ 36 , 3 , 36],
-			lon: [-107, 57, 19],
-		},
-		{
-			name: "Pueblo Del Arroyo",
-			lat: [ 36 , 3 , 40],
-			lon: [-107, 57, 56],
-		},
-	],
+		waypoints: [
+			{
+				name: "Pueblo Bonito",
+				lat: [ 36 ,  3, 39],
+				lon: [-107, 57, 44],
+			},
+			{
+				name: "Pueblo Bonito",
+				lat: [ 36 ,  3, 39],
+				lon: [-107, 57, 42],
+			},
+			{
+				name: "Hillside Ruin",
+				lat: [ 36 , 3 , 38],
+				lon: [-107, 57, 35],
+			},
+			{
+				name: "Chetro Ketl",
+				lat: [ 36 , 3 , 37],
+				lon: [-107, 57, 15],
+			},
+			{
+				name: "McElmo Unit",
+				lat: [ 36 , 3 , 36],
+				lon: [-107, 57, 19],
+			},
+			{
+				name: "Pueblo Del Arroyo",
+				lat: [ 36 , 3 , 40],
+				lon: [-107, 57, 56],
+			},
+		],
+	},
 
 	dynamic_colors: {
 		K0: 1800,
@@ -708,7 +518,7 @@ function populateLocalView(canvas: HTMLCanvasElement) {
 			matSun.emissiveColor = c; // required for glow layer
 			matSun.ambientColor = c;
 
-			sphere = BABYLON.MeshBuilder.CreateSphere('sphere', {diameter: systemData.local_sun_radius*2}, scene);
+			sphere = BABYLON.MeshBuilder.CreateSphere('sphere', {diameter: systemData.localInfo.sun_radius*2}, scene);
 			sphere.position = BV3([1,1,1]);
 			sphere.material = matSun;
 		}
@@ -734,44 +544,51 @@ function populateLocalView(canvas: HTMLCanvasElement) {
 
 			shadowGenerator.addShadowCaster(cyl);
 
-			systemData.local_marker = parentObject;
+			systemData.localInfo.marker = parentObject;
 		}
 
 		// Load local models
-		let countdown = systemData.local_models.length
-		for (let local_path of systemData.local_models) {
+		{
+			let localInfo = systemData.localInfo;
 
-			BABYLON.SceneLoader.ImportMesh(null, local_path, "out.obj", scene,
-				function onSuccess(meshes, particleSystems, skeletons) {
-					console.log(`success! ${meshes.length}`);
-					let m = meshes[0];
+			localInfo.models_outstanding = localInfo.model_paths.length
+			systemData.updateLocalViewOrientationLabel(`Loading, ${localInfo.models_outstanding} models remaining`);
 
-					m.receiveShadows = true;
+			for (let local_path of localInfo.model_paths) {
 
-					// We likely don't have vertex normals in the file to save space. Calculate them here.
-					let vtx = m.getVerticesData(BABYLON.VertexBuffer.PositionKind);
-					if (vtx != null) {
-						let nrm = new Float32Array(vtx.length);
-						BABYLON.VertexData.ComputeNormals(vtx, m.getIndices(), nrm);
-						m.setVerticesData(BABYLON.VertexBuffer.NormalKind, nrm);
+				BABYLON.SceneLoader.ImportMesh(null, local_path, "out.obj", scene,
+					function onSuccess(meshes, particleSystems, skeletons) {
+						console.log(`success! ${meshes.length}`);
+						let m = meshes[0];
+
+						m.receiveShadows = true;
+
+						// We likely don't have vertex normals in the file to save space. Calculate them here.
+						let vtx = m.getVerticesData(BABYLON.VertexBuffer.PositionKind);
+						if (vtx != null) {
+							let nrm = new Float32Array(vtx.length);
+							BABYLON.VertexData.ComputeNormals(vtx, m.getIndices(), nrm);
+							m.setVerticesData(BABYLON.VertexBuffer.NormalKind, nrm);
+						}
+
+						systemData.localView.objects.scenery = m;
+
+						localInfo.models_outstanding--;
+						if (localInfo.models_outstanding <= 0 && localInfo.waypoints.length>0) {
+							systemData.moveToWaypoint(0);
+						}
+
+						systemData.refreshViews();
+						systemData.updateLocalViewOrientationLabel(`Loading, ${localInfo.models_outstanding} models remaining`);
+					},
+					function onProgress(scene) {
+						console.log("progress!");
+					},
+					function onError(scene) {
+						console.log("error!");
 					}
-
-					systemData.localView.objects.scenery = m;
-
-					countdown--;
-					if (countdown <= 0 && systemData.local_waypoints.length>0) {
-						systemData.moveToWaypoint(0);
-					}
-
-					systemData.refreshViews();
-				},
-				function onProgress(scene) {
-					console.log("progress!");
-				},
-				function onError(scene) {
-					console.log("error!");
-				}
-			);
+				);
+			}
 		}
 	}
 
@@ -882,7 +699,7 @@ systemData.refreshViews = function() {
 		let { light, scene, objects: {sphere} } = systemData.localView;
 		let [ax, ay, az] = [ [1,0,0], [0,1,0], [0,0,1] ];
 		let light_pos = GEOM.convertAziZen(ax, ay, az, azimuth, zenith);
-		let light_dist = systemData.local_sun_distance;
+		let light_dist = systemData.localInfo.sun_distance;
 
 		let light_dir = GEOM.unit([0-light_pos[0], 0-light_pos[1], 0-light_pos[2]]);
 
@@ -917,7 +734,7 @@ systemData.refreshViews = function() {
 					K = K0 + u*(K1-K0)
 				}
 
-				[r,g,b] = kelvin_to_rgb(K);
+				[r,g,b] = MISC.kelvin_to_rgb(K);
 			}
 
 			let ambient = systemData.ambient_light;
@@ -952,10 +769,10 @@ systemData.refreshSPA = function() {
 };
 
 systemData.moveToWaypoint = function(idx: number) {
-	let waypoint = systemData.local_waypoints[idx];
+	let waypoint = systemData.localInfo.waypoints[idx];
 	let {lat,lon} = waypoint;
-	let lat_dec = hms_to_dec(lat[0],lat[1],lat[2]);
-	let lon_dec = hms_to_dec(lon[0],lon[1],lon[2]);
+	let lat_dec = MISC.hms_to_dec(lat[0],lat[1],lat[2]);
+	let lon_dec = MISC.hms_to_dec(lon[0],lon[1],lon[2]);
 	
 	systemData.spa.latitude  = lat_dec;
 	systemData.spa.longitude = lon_dec;
@@ -973,7 +790,7 @@ systemData.moveToWaypoint = function(idx: number) {
 		let scene = systemData.localView.scene;
 		
 		let hit = scene.pickWithRay(ray, (m: BABYLON.Mesh) => {
-			let val = systemData.local_marker ? systemData.local_marker.parent : null;
+			let val = systemData.localInfo.marker ? systemData.localInfo.marker.parent : null;
 			return (!val || m === val); 
 		});
 
@@ -988,8 +805,8 @@ systemData.moveToWaypoint = function(idx: number) {
 	let vec = BV3([x,y,z])
 	systemData.localView.camera.lockedTarget = vec;
 
-	if (systemData.local_marker) {
-		systemData.local_marker.position = vec;
+	if (systemData.localInfo.marker) {
+		systemData.localInfo.marker.position = vec;
 	}
 
 	systemData.refreshUI();
@@ -1150,8 +967,8 @@ window.addEventListener('DOMContentLoaded', function() {
 					view.shouldRender = view.shouldRender &= ~RenderFlags.Once;
 				}
 
-				let label = document.getElementById('localViewOrientationLabel');
-				if (!label) return;
+				// don't update until models loaded.
+				if (systemData.localInfo.models_outstanding>0) return;
 
 				let cam = view.camera as BABYLON.Camera;
 				let dir = cam.getForwardRay().direction;
@@ -1175,7 +992,7 @@ window.addEventListener('DOMContentLoaded', function() {
 				}
 
 				let txt = `Azimuth ${view_azi_degs.toFixed(0)}°, elevation ${view_ele_degs.toFixed(0)}°`;
-				label.innerHTML = txt;
+				systemData.updateLocalViewOrientationLabel(txt);
 			}
 		});
 	}
@@ -1199,11 +1016,11 @@ window.addEventListener('DOMContentLoaded', function() {
 
 		let location = document.createElement("select");
 
-		for (let w of systemData.local_waypoints) {
+		for (let w of systemData.localInfo.waypoints) {
 			let {name,lat,lon} = w;
 
-			let [lat_dec,lon_dec] = [hms_to_dec(lat[0],lat[1],lat[2]),hms_to_dec(lon[0],lon[1],lon[2])];
-			let [lat_hms,lon_hms] = [dec_to_hms(lat_dec),dec_to_hms(lon_dec)];
+			let [lat_dec,lon_dec] = [MISC.hms_to_dec(lat[0],lat[1],lat[2]),MISC.hms_to_dec(lon[0],lon[1],lon[2])];
+			let [lat_hms,lon_hms] = [MISC.dec_to_hms(lat_dec),MISC.dec_to_hms(lon_dec)];
 			let [lon_m,lat_m] = lonlat_degs_to_m(lon_dec, lat_dec);
 
 			console.log(`${name} ${lat} ${lon}`);
@@ -1317,19 +1134,20 @@ window.addEventListener('DOMContentLoaded', function() {
 		let subdiv = document.createElement('div');
 
 		// Be careful; Java/Typescript months are zero-based!
-		for (let what of [Season.MarchEquinox, Season.JuneSolstice, Season.SeptemberEquinox, Season.DecemberSolstice]) {
+		const s = SEASON.Season;
+		for (let what of [s.MarchEquinox, s.JuneSolstice, s.SeptemberEquinox, s.DecemberSolstice]) {
 
 			let btn = document.createElement("button");
-			btn.innerHTML = `${Season[what]}`;
+			btn.innerHTML = `${s[what]}`;
 			btn.onclick = function () {
 				let spa = systemData.spa;
-				let [year,month,day, hour,minute,second] = GetSeasonUTC(what, spa.year);
+				let [year,month,day, hour,minute,second] = SEASON.GetSeasonUTC(what, spa.year);
 				
 				// adjust date for timezone; try to do everything in UTC
 				let date = new Date( Date.UTC(year,month-1,day, hour,minute,second) );
-				console.log(Season[what], date.toUTCString(), "(UTC)");
+				console.log(s[what], date.toUTCString(), "(UTC)");
 				date.setTime( date.getTime() + spa.timezone * 60*60 * 1000 );
-				console.log(Season[what], date.toUTCString(), `(LOCAL: UTC + ${spa.timezone})`);
+				console.log(s[what], date.toUTCString(), `(LOCAL: UTC + ${spa.timezone})`);
 
 				// set SPA values; note that we use values from adjusted UTC
 				year = date.getUTCFullYear();
@@ -1383,7 +1201,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
 		let slider = document.createElement('input');
 		slider.type = `range`;
-		Object.assign(slider, {min: 0, max: (24*60*60)-1, step: 1, value: hms_to_sec(h,m,s)});
+		Object.assign(slider, {min: 0, max: (24*60*60)-1, step: 1, value: MISC.hms_to_sec(h,m,s)});
 
 		let hour_ui = new UIValue(
 			() => {hour.value = `${spa.hour}`},
@@ -1398,7 +1216,7 @@ window.addEventListener('DOMContentLoaded', function() {
 			() => {spa.second = sec.valueAsNumber} );
 
 		let slider_ui = new UIValue(
-			() => { slider.value = `${hms_to_sec(spa.hour, spa.minute, spa.second)}`; },
+			() => { slider.value = `${MISC.hms_to_sec(spa.hour, spa.minute, spa.second)}`; },
 			() => {} );
 
 		hour.oninput = function() {
@@ -1420,7 +1238,7 @@ window.addEventListener('DOMContentLoaded', function() {
 		}
 
 		slider.oninput = function() {
-			([spa.hour, spa.minute, spa.second] = sec_to_hms(parseInt(slider.value)));
+			([spa.hour, spa.minute, spa.second] = MISC.sec_to_hms(parseInt(slider.value)));
 			systemData.refreshUI();
 			systemData.refreshViews();
 		};
