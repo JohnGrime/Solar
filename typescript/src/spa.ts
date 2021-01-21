@@ -1495,8 +1495,8 @@ function spa_print(spa: SPA) : string[] {
 	*/
 		`  ${timeStr(spa.year,spa.month,spa.day,'/')} ${timeStr(spa.hour,spa.minute,spa.second)} GMT ${spa.timezone}`,
 		'',
-		`  Latitude:      ${(spa.latitude).toFixed(2)}`,
-		`  Longitude:     ${(spa.longitude).toFixed(2)}`,
+		`  Latitude:      ${(spa.latitude).toFixed(2)}°`,
+		`  Longitude:     ${(spa.longitude).toFixed(2)}°`,
 	/*
 		`  Elevation:     ${(spa.elevation).toFixed(2)}`,
 		`  Pressure:      ${(spa.pressure).toFixed(2)}`,
@@ -1511,9 +1511,9 @@ function spa_print(spa: SPA) : string[] {
 		'Outputs:',
 		*/
 		'',
-		`  Zenith:        ${(spa.zenith).toFixed(2)} degrees`,
-		`  Azimuth:       ${(spa.azimuth).toFixed(2)} degrees`,
-		`  Incidence:     ${(spa.incidence).toFixed(2)} degrees`,
+		`  Zenith:        ${(spa.zenith).toFixed(2)}°`,
+		`  Azimuth:       ${(spa.azimuth).toFixed(2)}°`,
+		`  Incidence:     ${(spa.incidence).toFixed(2)}°`,
 		'',
 		sunrise,
 		sunset,

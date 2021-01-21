@@ -26,6 +26,28 @@ function lonlat_degs_to_m(lon: number, lat: number): [number,number] {
 	return [ (lon-lon0)*lon_m_per_deg, (lat-lat0)*lat_m_per_deg ];
 }
 
+function seasonToYMDHMS(what: SEASON.Season, which_year: number, timezone: number = 0) {
+	const s = SEASON.Season;
+	let [year,month,day, hour,minute,second] = SEASON.GetSeasonUTC(what, which_year);
+	
+	// adjust date for timezone; try to do everything in UTC
+	let date = new Date( Date.UTC(year,month-1,day, hour,minute,second) );
+	console.log(SEASON.Season[what], date.toUTCString(), "(UTC)");
+	date.setTime( date.getTime() + timezone * 60*60 * 1000 );
+	console.log(SEASON.Season[what], date.toUTCString(), `(LOCAL: UTC + ${timezone})`);
+
+	// set SPA values; note that we use values from adjusted UTC
+	year = date.getUTCFullYear();
+	month = date.getUTCMonth()+1;
+	day = date.getUTCDate();
+
+	hour = date.getUTCHours();
+	minute = date.getUTCMinutes();
+	second = date.getUTCSeconds();
+
+	return [year,month,day, hour,minute,second];
+}
+
 // Bit flags
 const RenderFlags = {
 	Ignore: 0,
@@ -623,7 +645,48 @@ systemData.refreshViews = function() {
 	
 	// Update output text region
 	if (result == 0) {
-		let lines = SPA.print(spa);
+		// Used for HH[sep]MM[sep]SS format time strings. Can also be used for
+		// dates, e.g. YYYY[sep]MM[sep]DD.
+		let timeStr = function(vals: number[], sep:string = ':') : string
+		{
+			let pad2 = (x: number) => ((x<10) ? "0" : "") + `${Math.floor(x).toFixed(0)}`;
+			return vals.map( x => pad2(x) ).join(sep);
+		}
+
+		let toHMS = function(time: number) : number[] {
+			let int = Math.floor;
+			let min = 60.0*(time - int(time));
+			let sec = 60.0*(min - int(min));
+			return [int(time), int(min), int(sec)];
+		}
+
+		let [year,month,day] = [spa.year,spa.month,spa.day];
+		let [hour,min,sec] = [spa.hour,spa.minute,spa.second];
+
+		let lines = [
+//			`${timeStr([year,month,day],'/')} ${timeStr([hour,min,sec])} GMT ${spa.timezone}`,
+//			'',
+//			`Latitude:      ${(spa.latitude).toFixed(2)}°`,
+//			`Longitude:     ${(spa.longitude).toFixed(2)}°`,
+//			'',
+			`Zenith:        ${(spa.zenith).toFixed(2)}°`,
+			`Azimuth:       ${(spa.azimuth).toFixed(2)}°`,
+			`Incidence:     ${(spa.incidence).toFixed(2)}°`,
+			'',
+			`Sunrise: ${timeStr(toHMS(spa.sunrise))} Local`,
+			`Transit: ${timeStr(toHMS(spa.suntransit))} Local`,
+			`Sunset:  ${timeStr(toHMS(spa.sunset))} Local`,
+			'',
+		];
+
+		for (let what in SEASON.Season) {
+			if (!isNaN(Number(what))) continue; // skip if number
+			let season = SEASON.Season[what as keyof typeof SEASON.Season];
+			let [yr,mt,dy, hr,mi,sc] = seasonToYMDHMS(season, spa.year, spa.timezone);
+			let str = `${SEASON.toString(season)}: ${timeStr([mt,dy],'/')} ${timeStr([hr,mi,sc])} Local`;
+			lines.push(str);
+		}
+
 		let outContainer = document.getElementById('outputContainer');
 		if (outContainer !== null) {
 			let txt = '';
@@ -632,10 +695,6 @@ systemData.refreshViews = function() {
 				txt += `${line}<br>`;
 			}
 			outContainer.innerHTML = txt;
-		} else {
-			for (let line of lines) {
-				console.log(line);
-			}
 		}
 	}
 	else {
@@ -1028,7 +1087,7 @@ window.addEventListener('DOMContentLoaded', function() {
 			console.log(`  ${lon} => ${lon_dec} => ${lon_hms} => ${lon_m}`);
 
 			let option = document.createElement("option");
-			option.text = `${name} ${lat[0]}°${lat[1]}'${lat[2]}\" ${lon[0]}°${lon[1]}'${lon[2]}\"`;
+			option.text = `${name} ${lat[0]}°${lat[1]}'${lat[2]}\", ${lon[0]}°${lon[1]}'${lon[2]}\"`;
 			location.add(option);
 		}
 
@@ -1133,32 +1192,17 @@ window.addEventListener('DOMContentLoaded', function() {
 	{
 		let subdiv = document.createElement('div');
 
-		// Be careful; Java/Typescript months are zero-based!
-		const s = SEASON.Season;
-		for (let what of [s.MarchEquinox, s.JuneSolstice, s.SeptemberEquinox, s.DecemberSolstice]) {
+		for (let what in SEASON.Season) {
+			if (!isNaN(Number(what))) continue; // skip if number
+			let season = SEASON.Season[what as keyof typeof SEASON.Season];
+
 
 			let btn = document.createElement("button");
-			btn.innerHTML = `${s[what]}`;
+			btn.innerHTML = `${SEASON.toString(season)}`;
 			btn.onclick = function () {
 				let spa = systemData.spa;
-				let [year,month,day, hour,minute,second] = SEASON.GetSeasonUTC(what, spa.year);
-				
-				// adjust date for timezone; try to do everything in UTC
-				let date = new Date( Date.UTC(year,month-1,day, hour,minute,second) );
-				console.log(s[what], date.toUTCString(), "(UTC)");
-				date.setTime( date.getTime() + spa.timezone * 60*60 * 1000 );
-				console.log(s[what], date.toUTCString(), `(LOCAL: UTC + ${spa.timezone})`);
 
-				// set SPA values; note that we use values from adjusted UTC
-				year = date.getUTCFullYear();
-				month = date.getUTCMonth()+1;
-				day = date.getUTCDate();
-
-				hour = date.getUTCHours();
-				minute = date.getUTCMinutes();
-				second = date.getUTCSeconds();
-
-				([spa.year,spa.month,spa.day, spa.hour,spa.minute,spa.second] = [year,month,day, hour,minute,second]);
+				([spa.year,spa.month,spa.day, spa.hour,spa.minute,spa.second] = seasonToYMDHMS(season, spa.year, spa.timezone));
 
 				systemData.refreshUI();
 				systemData.refreshViews();

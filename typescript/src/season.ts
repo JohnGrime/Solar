@@ -8,6 +8,7 @@
 
 export {
 	Season as Season,
+	toString as toString,
 	GetSeasonUTC as GetSeasonUTC,
 };
 
@@ -17,10 +18,14 @@ export {
 //
 
 enum Season {
-	MarchEquinox,
-	JuneSolstice,
-	SeptemberEquinox,
-	DecemberSolstice,
+	March_Equinox,
+	June_Solstice,
+	September_Equinox,
+	December_Solstice,
+}
+
+function toString(season: Season): string {
+	return `${Season[season]}`.replace("_", " ");
 }
 
 function meanJDE(season: Season, year: number): number {
@@ -29,16 +34,16 @@ function meanJDE(season: Season, year: number): number {
 		// mean season Julian dates for years -1000 to 1000
 		const y = year / 1000.0;
 		switch (season) {
-			case Season.MarchEquinox:
+			case Season.March_Equinox:
 			return 1721139.29189 + (365242.13740 * y) + (0.06134 * Math.pow(y, 2)) + (0.00111 * Math.pow(y, 3)) - (0.00071 * Math.pow(y, 4));
 
-			case Season.JuneSolstice:
+			case Season.June_Solstice:
 			return 1721233.25401 + (365241.72562 * y) - (0.05323 * Math.pow(y, 2)) + (0.00907 * Math.pow(y, 3)) + (0.00025 * Math.pow(y, 4));
 
-			case Season.SeptemberEquinox:
+			case Season.September_Equinox:
 			return 1721325.70455 + (365242.49558 * y) - (0.11677 * Math.pow(y, 2)) - (0.00297 * Math.pow(y, 3)) + (0.00074 * Math.pow(y, 4));
 
-			case Season.DecemberSolstice:
+			case Season.December_Solstice:
 			return 1721414.39987 + (365242.88257 * y) - (0.00769 * Math.pow(y, 2)) - (0.00933 * Math.pow(y, 3)) - (0.00006 * Math.pow(y, 4));
 
 			default:
@@ -49,16 +54,16 @@ function meanJDE(season: Season, year: number): number {
 		// mean season Julian dates for years 1000 to 3000
 		const y = (year - 2000) / 1000.0;
 		switch (season) {
-			case Season.MarchEquinox:
+			case Season.March_Equinox:
 			return 2451623.80984 + (365242.37404 * y) + (0.05169 * Math.pow(y, 2)) - (0.00411 * Math.pow(y, 3)) - (0.00057 * Math.pow(y, 4));
 
-			case Season.JuneSolstice:
+			case Season.June_Solstice:
 			return 2451716.56767 + (365241.62603 * y) + (0.00325 * Math.pow(y, 2)) + (0.00888 * Math.pow(y, 3)) - (0.00030 * Math.pow(y, 4));
 
-			case Season.SeptemberEquinox:
+			case Season.September_Equinox:
 			return 2451810.21715 + (365242.01767 * y) - (0.11575 * Math.pow(y, 2)) + (0.00337 * Math.pow(y, 3)) + (0.00078 * Math.pow(y, 4));
 
-			case Season.DecemberSolstice:
+			case Season.December_Solstice:
 			return 2451900.05952 + (365242.74049 * y) - (0.06223 * Math.pow(y, 2)) - (0.00823 * Math.pow(y, 3)) + (0.00032 * Math.pow(y, 4));
 
 			default:
