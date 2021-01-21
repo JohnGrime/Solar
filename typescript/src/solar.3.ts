@@ -1143,21 +1143,15 @@ window.addEventListener('DOMContentLoaded', function() {
 	{
 		let view = systemData.localView;
 
-		let label = document.createElement('div');
-		label.style.top = "5px";
-		label.style.right = "5px";
-		label.style.position = "absolute";
-		label.style.color = "black";
-		label.style.background = "white";
-
-		document.body.appendChild(label);
-
 		view.engine.runRenderLoop( function() {
 			if (view.shouldRender !== RenderFlags.Ignore) {
 				view.scene.render();
 				if ((view.shouldRender & RenderFlags.Once) != 0) {
 					view.shouldRender = view.shouldRender &= ~RenderFlags.Once;
 				}
+
+				let label = document.getElementById('localViewOrientationLabel');
+				if (!label) return;
 
 				let cam = view.camera as BABYLON.Camera;
 				let dir = cam.getForwardRay().direction;

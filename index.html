@@ -16,6 +16,10 @@
 			padding: 0px;
 		}
 
+		/*
+			Upper div container; basically a wrapper for the local view
+			canvas.
+		*/
 		.upperContainer {
 			width:   100%;
 			height:  66%;
@@ -24,6 +28,9 @@
 			display: inline-block;
 		}
 
+		/*
+			Render canvas for the local view
+		*/
 		.localRenderCanvas {
 			width:   100%;
 			height:  100%;
@@ -31,6 +38,35 @@
 			padding: 0px;
 		}
 
+		/*
+			Inset render canvas for the global view
+		*/
+		.globalRenderCanvas {
+			width:  20%;
+			height: 20%;
+			top:  5px;
+			left: 5px;
+			position: absolute;
+			border: 1px solid rgba(245,245,245,0.2);
+			border-radius: 5px;
+		}
+
+		/*
+			Inset label for the local azimuthal and elevation view angles
+		*/
+		.localViewOrientationLabel {
+			top:   5px;
+			right: 5px;
+			position: absolute;
+			color: black;
+			background: white;
+		}
+
+
+		/*
+			Lower div container; basically a wrapper for the global view canvas
+			and UI elements.
+		*/
 		.lowerContainer {
 			width:   100%;
 			height:  33%;
@@ -40,16 +76,9 @@
 			align-content: center;
 		}
 
-		.globalRenderCanvas {
-			width:   25%;
-			height:  100%;
-			margin:  0px;
-			padding: 0px;
-			display: inline-block;
-			align-content: center;
-			vertical-align: top;
-		}
-
+		/*
+			UI controls of the location, date, and time of day.
+		*/
 		.uiControlsContainer {
 			width:   50%;
 			height:  100%;
@@ -60,6 +89,11 @@
 			vertical-align: top;
 		}
 
+		/*
+			Debug; show the SPA data structure and associated data. Maybe change to
+			text representation of sunrise/transit/sunset and solstice/equinox info
+			that corresponds to the appropriate buttons?
+		*/
 		.uiOutputContainer {
 			width:   25%;
 			height:  100%;
@@ -74,21 +108,13 @@
 
 <body>
 
-	<!--
-	<div class="canvasContainer">
-		<canvas class="renderCanvas" id="renderCanvas"></canvas><canvas class="renderCanvas" id="renderCanvas2"></canvas>
-	</div>
-
-	<div class="uiContainer">
-		<div class="uiSubContainer" id="uiContainer"></div><pre class="uiSubContainer" id="outputContainer"></pre>
-	</div>
-	-->
-
 	<div class="upperContainer">
 		<canvas class="localRenderCanvas" id="localRenderCanvas"></canvas>
+		<div class="localViewOrientationLabel" id="localViewOrientationLabel"></div>
+		<canvas class="globalRenderCanvas" id="globalRenderCanvas"></canvas>
 	</div>
 	<div class="lowerContainer">
-		<canvas class="globalRenderCanvas" id="globalRenderCanvas"></canvas><div class="uiControlsContainer" id="uiContainer"></div><pre class="uiOutputContainer" id="outputContainer"></pre>
+		<div class="uiControlsContainer" id="uiContainer"></div><pre class="uiOutputContainer" id="outputContainer"></pre>
 	</div>
 
 	<!--
