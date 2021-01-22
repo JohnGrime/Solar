@@ -7,7 +7,6 @@ import * as MISC from './misc.js';
 // Handled in tsconfig.json, e.g.: "types": ["babylonjs"]
 //import * as BABYLON from 'babylonjs';
 
-
 /*
 	**********************************************
 	Define some constants and types.
@@ -24,31 +23,6 @@ const lat_m_per_deg = 111194.92664455873;
 
 function lonlat_degs_to_m(lon: number, lat: number): [number,number] {
 	return [ (lon-lon0)*lon_m_per_deg, (lat-lat0)*lat_m_per_deg ];
-}
-
-// CAREFUL: javascript date months are ZERO BASED!
-function seasonToYMDHMS(what: SEASON.Season, which_year: number, timezone: number = 0) {
-	const s = SEASON.Season;
-	let [year,month,day, hour,minute,second] = SEASON.GetSeasonUTC(what, which_year);
-	
-	console.log("");
-
-	// adjust date for timezone; try to do everything in UTC
-	let date = new Date( Date.UTC(year,month-1,day, hour,minute,second) );
-	console.log(SEASON.Season[what], date.toUTCString(), "(UTC)");
-	date.setTime( date.getTime() + timezone * 60*60 * 1000 );
-	console.log(SEASON.Season[what], date.toUTCString(), `(LOCAL: UTC + ${timezone})`);
-
-	// set SPA values; note that we use values from adjusted UTC
-	year = date.getUTCFullYear();
-	month = date.getUTCMonth()+1;
-	day = date.getUTCDate();
-
-	hour = date.getUTCHours();
-	minute = date.getUTCMinutes();
-	second = date.getUTCSeconds();
-
-	return [year,month,day, hour,minute,second];
 }
 
 // Bit flags
@@ -107,13 +81,8 @@ class UIValue {
 		this.store_cb = store_cb;
 	}
 
-	load() {
-		this.load_cb?.();
-	}
-
-	store() {
-		this.store_cb?.();
-	}
+	load()  { this.load_cb?.();  }
+	store() { this.store_cb?.(); }
 }
 
 // Storage type for system data
@@ -667,11 +636,6 @@ systemData.refreshViews = function() {
 		let [hour,min,sec] = [spa.hour,spa.minute,spa.second];
 
 		let lines = [
-//			`${timeStr([year,month,day],'/')} ${timeStr([hour,min,sec])} GMT ${spa.timezone}`,
-//			'',
-//			`Latitude:      ${(spa.latitude).toFixed(2)}°`,
-//			`Longitude:     ${(spa.longitude).toFixed(2)}°`,
-//			'',
 			`Zenith:        ${(spa.zenith).toFixed(2)}°`,
 			`Azimuth:       ${(spa.azimuth).toFixed(2)}°`,
 			`Incidence:     ${(spa.incidence).toFixed(2)}°`,
@@ -685,7 +649,7 @@ systemData.refreshViews = function() {
 		for (let what in SEASON.Season) {
 			if (!isNaN(Number(what))) continue; // skip if number
 			let season = SEASON.Season[what as keyof typeof SEASON.Season];
-			let [yr,mt,dy, hr,mi,sc] = seasonToYMDHMS(season, spa.year, spa.timezone);
+			let [yr,mt,dy, hr,mi,sc] = SEASON.toYMDHMS(season, spa.year, spa.timezone);
 			let str = `${SEASON.toString(season)}: ${timeStr([yr,mt,dy],'/')} ${timeStr([hr,mi,sc])} Local`;
 			lines.push(str);
 		}
@@ -830,6 +794,10 @@ systemData.refreshSPA = function() {
 	}
 };
 
+//
+// Move camera to specified waypoint
+//
+
 systemData.moveToWaypoint = function(idx: number) {
 	let waypoint = systemData.localInfo.waypoints[idx];
 	let {lat,lon} = waypoint;
@@ -903,7 +871,7 @@ systemData.moveToWaypoint = function(idx: number) {
 	spa.minute        = d.getMinutes();
 	spa.second        = d.getSeconds();
 
-	spa.timezone      = -7.0;
+	spa.timezone      = -7.0; // new mexico is UTC-7
 
 	spa.delta_ut1     = 0;
 	spa.delta_t       = 67;
@@ -957,9 +925,6 @@ systemData.moveToWaypoint = function(idx: number) {
 		});
 	}
 }
-
-// Nudge refresh after 100 ms.
-window.setTimeout( function() { systemData.refreshViews(); }, 100);
 
 // Ensure views updated if window resized
 window.addEventListener('resize', function () {
@@ -1051,7 +1016,6 @@ window.addEventListener('DOMContentLoaded', function() {
 					let UP = BV3([0, -1, 0]);
 					let dot = BABYLON.Vector3.Dot(UP, dir);
 					view_ele_degs = (Math.acos(dot) - Math.PI/2) * 180/Math.PI
-//					view_ele_degs = 90 - view_ele_degs; // convert into zenith angle
 				}
 
 				let txt = `Azimuth ${view_azi_degs.toFixed(0)}°, zenith ${(90-view_ele_degs).toFixed(0)}°`;
@@ -1060,7 +1024,6 @@ window.addEventListener('DOMContentLoaded', function() {
 		});
 	}
 });
-
 
 //
 // Set up user interface
@@ -1206,7 +1169,7 @@ window.addEventListener('DOMContentLoaded', function() {
 			btn.onclick = function () {
 				let spa = systemData.spa;
 
-				([spa.year,spa.month,spa.day, spa.hour,spa.minute,spa.second] = seasonToYMDHMS(season, spa.year, spa.timezone));
+				([spa.year,spa.month,spa.day, spa.hour,spa.minute,spa.second] = SEASON.toYMDHMS(season, spa.year, spa.timezone));
 
 				systemData.refreshUI();
 				systemData.refreshViews();
@@ -1307,38 +1270,23 @@ window.addEventListener('DOMContentLoaded', function() {
 
 	// day-based checkpoints
 	{
+		let spa = systemData.spa;
 		let subdiv = document.createElement('div');
 
-		let sunrise = document.createElement("button");
-		sunrise.innerHTML = "Sunrise";
-		sunrise.onclick = function () {
-			let spa = systemData.spa;
-			[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunrise);
-			systemData.refreshUI();
-			systemData.refreshViews();
-		}
+		for (let what of ["Sunrise", "Transit", "Sunset"]) {
+			let val = spa.sunrise;
+			if (what == "Transit") val = spa.suntransit;
+			else if (what == "Sunset") val = spa.sunset;
 
-		let transit = document.createElement("button");
-		transit.innerHTML = "Transit";
-		transit.onclick = function () {
-			let spa = systemData.spa;
-			[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.suntransit);
-			systemData.refreshUI();
-			systemData.refreshViews();
+			let btn = document.createElement("button");
+			btn.innerHTML = what;
+			btn.onclick = function () {
+				[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(val);
+				systemData.refreshUI();
+				systemData.refreshViews();
+			}
+			subdiv.appendChild(btn);
 		}
-
-		let sunset = document.createElement("button");
-		sunset.innerHTML = "Sunset";
-		sunset.onclick = function () {
-			let spa = systemData.spa;
-			[spa.hour, spa.minute, spa.second] = SPA.time_to_hms(spa.sunset);
-			systemData.refreshUI();
-			systemData.refreshViews();
-		}
-
-		subdiv.appendChild(sunrise);
-		subdiv.appendChild(transit);
-		subdiv.appendChild(sunset);
 
 		div.appendChild(subdiv);
 	}

@@ -9,7 +9,8 @@
 export {
 	Season as Season,
 	toString as toString,
-	GetSeasonUTC as GetSeasonUTC,
+	getSeasonUTC as getSeasonUTC,
+	toYMDHMS as toYMDHMS,
 };
 
 //
@@ -150,7 +151,32 @@ function ymd_hms_from_JD(J: number): number[] {
 	return [Year,Month,Day, Hour,Minute,Second];
 }
 
-function GetSeasonUTC(season: Season, year: number): number[] {
+function getSeasonUTC(season: Season, year: number): number[] {
 	let julian_day = seasonJD(season, year);
 	return ymd_hms_from_JD(julian_day);
 }
+
+// CAREFUL: javascript date months are ZERO BASED!
+function toYMDHMS(what: Season, which_year: number, timezone: number = 0) {
+	let [year,month,day, hour,minute,second] = getSeasonUTC(what, which_year);
+	
+	console.log("");
+
+	// adjust date for timezone; try to do everything in UTC
+	let date = new Date( Date.UTC(year,month-1,day, hour,minute,second) );
+	console.log(Season[what], date.toUTCString(), "(UTC)");
+	date.setTime( date.getTime() + timezone * 60*60 * 1000 );
+	console.log(Season[what], date.toUTCString(), `(LOCAL: UTC + ${timezone})`);
+
+	// set SPA values; note that we use values from adjusted UTC
+	year = date.getUTCFullYear();
+	month = date.getUTCMonth()+1;
+	day = date.getUTCDate();
+
+	hour = date.getUTCHours();
+	minute = date.getUTCMinutes();
+	second = date.getUTCSeconds();
+
+	return [year,month,day, hour,minute,second];
+}
+
