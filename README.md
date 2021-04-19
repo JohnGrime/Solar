@@ -52,4 +52,5 @@ localInfo: {
 ## Credits
 
 SPA algorithm : `Reda, I.; Andreas, A., Solar Position Algorithm for Solar Radiation Applications, Solar Energy. Vol. 76(5), 2004; pp. 577-589`.
+
 Globe map : [Solar System Scope](https://www.solarsystemscope.com/textures/)
