@@ -14,15 +14,15 @@ The SPA calculates the solar zenith and azimuth angle with uncertainties equal t
 
 A view looking south across the [Pueblo Bonito](https://en.wikipedia.org/wiki/Pueblo_Bonito) structure at [Chaco Canyon](https://www.nps.gov/chcu/index.htm):
 
-~[](browser.small.jpg)
+![View from Pueblo Bonito](browser.small.jpg)
 
 A view from the same location, looking east just after sunrise:
 
-~[](browser.small.sunrise.jpg)
+![Sunrise at Pueblo Bonito](browser.small.sunrise.jpg)
 
 ... and looking west around sunset:
 
-~[](browser.small.sunset.jpg)
+![Sunset at Pueblo Bonito](browser.small.sunset.jpg)
 
 Note: the model data for Chaco Canyon is *not* provided in the repository due to the size of the files.
 
