@@ -40,7 +40,7 @@ localInfo: {
 
 	waypoints: [
 		{
-			name: "My waypoint 1",
+			name: "My waypoint location 1",
 			lat: [h, m, s], // integers, as: hours mins, secs
 			lon: [h, m, s], // integers, as: hours mins, secs
 		},
