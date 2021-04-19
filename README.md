@@ -1,6 +1,6 @@
 # Solar
 
-An implementation of the [NREL's solar position algorithm](https://midcdmz.nrel.gov/spa/) (SPA) in [TypeScript](https://www.typescriptlang.org/) allied to a 3D viewing system for topographical models. Allows the creation of web pages to explore the effects of sun position by date on geographical locations such as archaeological sites.
+An implementation of the [NREL's solar position algorithm](https://midcdmz.nrel.gov/spa/) (SPA) in [TypeScript](https://www.typescriptlang.org/) allied to a 3D viewing system for topographical models using [Babylon.js](https://www.babylonjs.com/). Allows the creation of web pages to explore the effects of sun position by date on geographical locations such as archaeological sites.
 
 The SPA calculates the solar zenith and azimuth angle with uncertainties equal to ±0.0003° in the period of -2000 to 6000 CE.
 
