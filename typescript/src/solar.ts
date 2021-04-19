@@ -72,7 +72,6 @@ type LocalInfo = {
 	sun_distance: number;
 	sun_radius: number;
 	model_paths: ModelPath[];
-//	model_paths: string[];
 	models_outstanding: number;
 	marker?: BABYLON.Mesh;
 	waypoints: Waypoint[];
@@ -545,10 +544,8 @@ function populateLocalView(canvas: HTMLCanvasElement) {
 			localInfo.models_outstanding = localInfo.model_paths.length
 			systemData.updateLocalViewOrientationLabel(`Loading, ${localInfo.models_outstanding} models remaining`);
 
-//			for (let [local_path,local_file] of localInfo.model_paths) {
 			for (let model_path of localInfo.model_paths) {
 				let {dir, file} = model_path;
-//				BABYLON.SceneLoader.ImportMesh(null, local_path, "out.obj", scene,
 				BABYLON.SceneLoader.ImportMesh(null, dir, file, scene,
 					function onSuccess(meshes, particleSystems, skeletons) {
 						console.log(`success! ${meshes.length}`);
