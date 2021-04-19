@@ -40,9 +40,9 @@ localInfo: {
 
 	waypoints: [
 		{
-			name: "Pueblo Bonito",
-			lat: [ 36 ,  3, 39], // hours mins, secs
-			lon: [-107, 57, 44], // hours mins, secs
+			name: "My waypoint 1",
+			lat: [h, m, s], // integers, as: hours mins, secs
+			lon: [h, m, s], // integers, as: hours mins, secs
 		},
 		... etc ...
 	],
